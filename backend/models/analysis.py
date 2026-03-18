@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Enum, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from database.db import Base
+from backend.database.db import Base
 import uuid
 import datetime
 
