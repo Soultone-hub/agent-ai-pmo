@@ -2,6 +2,8 @@ import fitz  # PyMuPDF
 from docx import Document
 from openpyxl import load_workbook
 import os
+import email
+from email import policy
 
 def parse_pdf(file_path: str) -> str:
     doc = fitz.open(file_path)
@@ -37,5 +39,26 @@ def parse_document(file_path: str) -> str:
         return parse_docx(file_path)
     elif ext == ".xlsx":
         return parse_xlsx(file_path)
+    elif ext == ".eml":
+        return parse_eml(file_path)
     else:
         raise ValueError(f"Format non supporté: {ext}")
+    
+
+def parse_eml(file_path: str) -> str:
+    with open(file_path, 'rb') as f:
+        msg = email.message_from_binary_file(f, policy=policy.default)
+    
+    text = f"De: {msg['from']}\n"
+    text += f"À: {msg['to']}\n"
+    text += f"Sujet: {msg['subject']}\n"
+    text += f"Date: {msg['date']}\n\n"
+    
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                text += part.get_content()
+    else:
+        text += msg.get_content()
+    
+    return text
