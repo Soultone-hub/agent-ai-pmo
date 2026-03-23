@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.routers import documents, risks, copil, kpi, chat
-
+from backend.models import user, project, document, analysis
 app = FastAPI(
     title="Agent IA - Pilotage de Projets Strategiques",
     description="API pour l'assistance intelligente au pilotage de projets",
