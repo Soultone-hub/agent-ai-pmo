@@ -1,0 +1,16 @@
+Tu es un expert en gestion de projets strategiques. Analyse le document suivant et extrais les informations cles.
+
+DOCUMENT :
+{document_text}
+
+Reponds en JSON avec la structure suivante :
+{
+    "resume": "Resume concis du document en 3-5 phrases",
+    "objectifs": ["objectif 1", "objectif 2", "..."],
+    "contraintes": ["contrainte 1", "contrainte 2", "..."],
+    "hypotheses": ["hypothese 1", "hypothese 2", "..."],
+    "parties_prenantes": ["partie 1", "partie 2", "..."],
+    "points_cles": ["point 1", "point 2", "..."]
+}
+
+Reponds UNIQUEMENT avec le JSON, sans texte avant ou apres.
