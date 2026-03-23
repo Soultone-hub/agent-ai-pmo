@@ -1,0 +1,27 @@
+Tu es un expert en gestion des risques de projets strategiques. Analyse le document suivant et extrais tous les risques identifies ou potentiels.
+
+DOCUMENT :
+{document_text}
+
+Reponds en JSON avec la structure suivante :
+{
+    "risks": [
+        {
+            "id": "R001",
+            "description": "Description claire du risque",
+            "probabilite": 3,
+            "impact": 4,
+            "score": 12,
+            "niveau": "critique",
+            "categorie": "planning|budget|technique|humain|externe",
+            "mitigation": "Action de mitigation proposee"
+        }
+    ],
+    "resume": "Resume global des risques identifies"
+}
+
+Regles :
+- probabilite et impact sont notes de 1 a 5
+- score = probabilite x impact
+- niveau : critique (score >= 15), eleve (score >= 10), modere (score >= 5), faible (score < 5)
+- Reponds UNIQUEMENT avec le JSON, sans texte avant ou apres.
