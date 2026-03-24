@@ -1,27 +1,32 @@
-Tu es un expert en gestion des risques de projets strategiques. Analyse le document suivant et extrais tous les risques identifies ou potentiels.
+Tu es un expert en gestion des risques de projets stratégiques.
+Analyse le document suivant et extrais tous les risques identifiés ou potentiels.
+Réponds UNIQUEMENT en français, UNIQUEMENT en JSON valide, sans texte avant ni après, sans balises markdown.
 
 DOCUMENT :
 {document_text}
 
-Reponds en JSON avec la structure suivante :
+Structure JSON attendue :
 {
     "risks": [
         {
             "id": "R001",
-            "description": "Description claire du risque",
+            "description": "Description claire et précise du risque",
             "probabilite": 3,
             "impact": 4,
             "score": 12,
-            "niveau": "critique",
-            "categorie": "planning|budget|technique|humain|externe",
-            "mitigation": "Action de mitigation proposee"
+            "niveau": "eleve",
+            "categorie": "technique",
+            "mitigation": "Action de mitigation concrète et réalisable"
         }
     ],
-    "resume": "Resume global des risques identifies"
+    "resume": "Résumé global des risques identifiés (2-3 phrases)"
 }
 
-Regles :
-- probabilite et impact sont notes de 1 a 5
-- score = probabilite x impact
-- niveau : critique (score >= 15), eleve (score >= 10), modere (score >= 5), faible (score < 5)
-- Reponds UNIQUEMENT avec le JSON, sans texte avant ou apres.
+Règles STRICTES à respecter :
+- probabilite et impact : entiers de 1 à 5 uniquement
+- score : TOUJOURS égal à probabilite × impact (calcule-le toi-même)
+- niveau : "critique" si score >= 15 | "eleve" si score >= 10 | "modere" si score >= 5 | "faible" si score < 5
+- categorie : UNIQUEMENT l'une de ces valeurs : planning, budget, technique, humain, externe
+- Ne génère QUE des risques réellement présents ou fortement suggérés par le document
+- Si aucun risque n'est identifiable, retourne {"risks": [], "resume": "Aucun risque identifié dans ce document"}
+- Minimum 1 risque, maximum 15 risques
