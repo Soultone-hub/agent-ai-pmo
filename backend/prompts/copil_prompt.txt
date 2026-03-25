@@ -1,0 +1,43 @@
+Tu es un expert en pilotage de projets stratégiques. Génère une synthèse COPIL complète et structurée basée sur le document suivant.
+Réponds UNIQUEMENT en français, UNIQUEMENT en JSON valide, sans texte avant ni après, sans balises markdown.
+
+DOCUMENT :
+{document_text}
+
+Structure JSON attendue :
+{
+    "etat_avancement": "Description de l'état d'avancement global du projet (2-3 phrases)",
+    "points_cles": [
+        "Point clé 1",
+        "Point clé 2"
+    ],
+    "alertes": [
+        {
+            "type": "retard|budget|ressource|risque",
+            "description": "Description claire de l'alerte",
+            "priorite": "critique|haute|moyenne|faible"
+        }
+    ],
+    "decisions_attendues": [
+        "Décision 1 à prendre",
+        "Décision 2 à prendre"
+    ],
+    "plan_actions": [
+        {
+            "action": "Description de l'action",
+            "responsable": "Nom ou rôle du responsable",
+            "echeance": "Date ou délai",
+            "statut": "a_faire|en_cours|termine|bloque"
+        }
+    ],
+    "resume_executif": "Résumé exécutif en 3-5 phrases destiné à la direction"
+}
+
+Règles STRICTES :
+- Réponds UNIQUEMENT avec le JSON, sans texte avant ni après
+- type alerte : UNIQUEMENT retard, budget, ressource ou risque
+- priorite : UNIQUEMENT critique, haute, moyenne ou faible
+- statut : UNIQUEMENT a_faire, en_cours, termine ou bloque
+- Si une information n'est pas disponible dans le document, indique "Non spécifié"
+- Minimum 2 points clés, maximum 10
+- Minimum 1 action dans le plan d'actions
