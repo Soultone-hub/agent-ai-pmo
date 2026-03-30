@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from backend.database.db import get_db
 from backend.services.parser_service import parse_document
 from backend.services.rag_service import index_document
-from backend.services.llm_service import send_to_groq
 from backend.models.document import Document
+from backend.services.analysis_service import analyze_document
 import uuid
 import os
 import tempfile
@@ -45,17 +45,17 @@ async def upload_document(
         os.unlink(tmp_path)
 
 @router.post("/analyze")
-async def analyze_document(document_id: str, db: Session = Depends(get_db)):
+async def analyze_document_endpoint(document_id: str, db: Session = Depends(get_db)):
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
-        raise HTTPException(status_code=404, detail="Document non trouve")
+        raise HTTPException(status_code=404, detail="Document non trouvé")
 
-    prompt_template = open('backend/prompts/analysis_prompt.txt').read()
-    prompt = prompt_template.replace('{document_text}', doc.content_text[:3000])
-    reponse = send_to_groq(prompt)
+    result = analyze_document(str(doc.project_id), str(doc.id), doc.content_text)
 
-    return {"document_id": document_id, "analyse": reponse}
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
 
+    return {"document_id": document_id, "analyse": result}
 @router.get("/")
 def list_documents(project_id: str, db: Session = Depends(get_db)):
     docs = db.query(Document).filter(Document.project_id == project_id).all()
