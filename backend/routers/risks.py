@@ -16,8 +16,8 @@ def extract_project_risks(project_id: str, document_id: str, db: Session = Depen
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouve")
 
-    result = extract_risks(project_id, doc.content_text)
-
+    result = extract_risks(project_id, document_id, doc.content_text)
+    
     analysis = Analysis(
         id=str(uuid.uuid4()),
         project_id=project_id,

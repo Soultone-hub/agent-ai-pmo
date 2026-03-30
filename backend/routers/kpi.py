@@ -17,7 +17,7 @@ def extract_project_kpis(project_id: str, document_id: str, db: Session = Depend
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouvé")
 
-    result = extract_kpis(project_id, doc.content_text)
+    result = extract_kpis(project_id, document_id, doc.content_text)
 
     if not result.get("kpis"):
         raise HTTPException(status_code=422, detail="Aucun KPI identifiable dans ce document")

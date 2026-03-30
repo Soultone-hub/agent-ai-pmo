@@ -2,7 +2,7 @@ import json
 import os
 import logging
 from backend.services.llm_service import send_to_groq
-from backend.services.rag_service import search_documents
+from backend.services.rag_service import search_in_document, search_in_documents
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 logger = logging.getLogger(__name__)
@@ -27,7 +27,6 @@ def validate_risks(data: dict) -> dict:
         else:
             risk["niveau"] = "faible"
 
-        # Catégorie valide uniquement
         categories_valides = {"planning", "budget", "technique", "humain", "externe"}
         if risk.get("categorie") not in categories_valides:
             risk["categorie"] = "externe"
@@ -35,8 +34,7 @@ def validate_risks(data: dict) -> dict:
     return data
 
 
-def extract_risks(project_id: str, document_text: str) -> dict:
-    # Chargement sécurisé du prompt
+def extract_risks(project_id: str, document_id: str, document_text: str) -> dict:
     prompt_path = os.path.join(BASE_DIR, '..', 'prompts', 'risk_prompt.txt')
     try:
         with open(prompt_path, 'r', encoding='utf-8') as f:
@@ -45,20 +43,11 @@ def extract_risks(project_id: str, document_text: str) -> dict:
         logger.error(f"Fichier prompt introuvable : {prompt_path}")
         return {"risks": [], "resume": "Fichier prompt introuvable"}
 
-    # Contexte RAG avec fallback
-    context = search_documents(project_id, "risques problemes contraintes difficultes")
-    context_text = "\n".join(context) if context else "Aucun contexte disponible"
+    # RAG ciblé sur le document cible
+    chunks = search_in_document(project_id, document_id, "risques problemes contraintes difficultes")
+    context_text = "\n".join(chunks) if chunks else "Aucun contexte disponible"
 
-    # Troncature propre
-    doc_preview = (
-        document_text[:2000].rsplit(' ', 1)[0] + "..."
-        if len(document_text) > 2000
-        else document_text
-    )
-
-    full_text = f"{doc_preview}\n\nCONTEXTE ADDITIONNEL:\n{context_text}"
-    prompt = prompt_template.replace('{document_text}', full_text)
-
+    prompt = prompt_template.replace('{document_text}', context_text)
     reponse = send_to_groq(prompt)
 
     try:
@@ -67,13 +56,42 @@ def extract_risks(project_id: str, document_text: str) -> dict:
             reponse_clean = reponse_clean.split('```json')[1].split('```')[0].strip()
         elif '```' in reponse_clean:
             reponse_clean = reponse_clean.split('```')[1].split('```')[0].strip()
-
         if not reponse_clean:
             return {"risks": [], "resume": "Aucun risque identifié"}
-
         data = json.loads(reponse_clean)
-        return validate_risks(data)  # ✅ Validation activée
-
+        return validate_risks(data)
     except json.JSONDecodeError as e:
         logger.error(f"Erreur parsing JSON pour projet {project_id}: {e}\nRéponse brute: {reponse}")
+        return {"risks": [], "resume": "Erreur de parsing", "raw": reponse}
+
+
+def extract_risks_multi(project_id: str, document_ids: list, document_texts: list) -> dict:
+    """Extraction de risques sur plusieurs documents cibles."""
+    prompt_path = os.path.join(BASE_DIR, '..', 'prompts', 'risk_prompt.txt')
+    try:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            prompt_template = f.read()
+    except FileNotFoundError:
+        logger.error(f"Fichier prompt introuvable : {prompt_path}")
+        return {"risks": [], "resume": "Fichier prompt introuvable"}
+
+    # RAG sur tous les documents cibles
+    chunks = search_in_documents(project_id, document_ids, "risques problemes contraintes difficultes")
+    context_text = "\n".join(chunks) if chunks else "Aucun contexte disponible"
+
+    prompt = prompt_template.replace('{document_text}', context_text)
+    reponse = send_to_groq(prompt)
+
+    try:
+        reponse_clean = reponse.strip()
+        if '```json' in reponse_clean:
+            reponse_clean = reponse_clean.split('```json')[1].split('```')[0].strip()
+        elif '```' in reponse_clean:
+            reponse_clean = reponse_clean.split('```')[1].split('```')[0].strip()
+        if not reponse_clean:
+            return {"risks": [], "resume": "Aucun risque identifié"}
+        data = json.loads(reponse_clean)
+        return validate_risks(data)
+    except json.JSONDecodeError as e:
+        logger.error(f"Erreur parsing JSON multi-docs : {e}\nRéponse brute: {reponse}")
         return {"risks": [], "resume": "Erreur de parsing", "raw": reponse}
