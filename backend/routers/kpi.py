@@ -6,6 +6,8 @@ from backend.database.db import get_db
 from backend.services.kpi_service import extract_kpis
 from backend.models.document import Document
 from backend.models.analysis import Analysis
+from backend.services.kpi_service import extract_kpis, extract_kpis_multi
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/kpi", tags=["KPI"])
@@ -87,3 +89,36 @@ def get_kpi_history(project_id: str, db: Session = Depends(get_db)):
             for a in analyses
         ]
     }
+
+
+
+
+class MultiKpiRequest(BaseModel):
+    project_id: str
+    document_ids: list[str]
+
+@router.post("/extract-multi")
+def extract_kpis_multi_endpoint(request: MultiKpiRequest, db: Session = Depends(get_db)):
+    docs = db.query(Document).filter(
+        Document.id.in_(request.document_ids)
+    ).all()
+
+    if not docs:
+        raise HTTPException(status_code=404, detail="Aucun document trouvé")
+
+    document_ids = [str(d.id) for d in docs]
+    document_texts = [d.content_text for d in docs]
+
+    result = extract_kpis_multi(request.project_id, document_ids, document_texts)
+
+    analysis = Analysis(
+        id=str(uuid.uuid4()),
+        project_id=request.project_id,
+        analysis_type="kpi",
+        result_json=result,
+        model_used="llama-3.3-70b-versatile"
+    )
+    db.add(analysis)
+    db.commit()
+
+    return result

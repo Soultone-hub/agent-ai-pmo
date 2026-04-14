@@ -3,9 +3,10 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.database.db import get_db
-from backend.services.copil_service import generate_copil
+from backend.services.copil_service import generate_copil, generate_copil_multi
 from backend.models.document import Document
 from backend.models.analysis import Analysis
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/copil", tags=["COPIL"])
@@ -67,3 +68,39 @@ def get_copil_history(project_id: str, db: Session = Depends(get_db)):
             for a in analyses
         ]
     }
+
+
+
+
+class MultiCopilRequest(BaseModel):
+    project_id: str
+    document_ids: list[str]
+
+@router.post("/generate-multi")
+def generate_copil_multi_endpoint(request: MultiCopilRequest, db: Session = Depends(get_db)):
+    docs = db.query(Document).filter(
+        Document.id.in_(request.document_ids)
+    ).all()
+
+    if not docs:
+        raise HTTPException(status_code=404, detail="Aucun document trouvé")
+
+    document_ids = [str(d.id) for d in docs]
+    document_texts = [d.content_text for d in docs]
+
+    result = generate_copil_multi(request.project_id, document_ids, document_texts)
+
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    analysis = Analysis(
+        id=str(uuid.uuid4()),
+        project_id=request.project_id,
+        analysis_type="copil",
+        result_json=result,
+        model_used="llama-3.3-70b-versatile"
+    )
+    db.add(analysis)
+    db.commit()
+
+    return result

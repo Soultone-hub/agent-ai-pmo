@@ -4,7 +4,8 @@ from backend.database.db import get_db
 from backend.services.parser_service import parse_document
 from backend.services.rag_service import index_document
 from backend.models.document import Document
-from backend.services.analysis_service import analyze_document
+from backend.services.analysis_service import analyze_document, analyze_documents_multi
+from pydantic import BaseModel
 import uuid
 import os
 import tempfile
@@ -69,3 +70,28 @@ def delete_document(document_id: str, db: Session = Depends(get_db)):
     db.delete(doc)
     db.commit()
     return {"message": "Document supprime"}
+
+
+
+class MultiAnalyzeRequest(BaseModel):
+    project_id: str
+    document_ids: list[str]
+
+@router.post("/analyze-multi")
+def analyze_multi_endpoint(request: MultiAnalyzeRequest, db: Session = Depends(get_db)):
+    docs = db.query(Document).filter(
+        Document.id.in_(request.document_ids)
+    ).all()
+
+    if not docs:
+        raise HTTPException(status_code=404, detail="Aucun document trouvé")
+
+    document_ids = [str(d.id) for d in docs]
+    document_texts = [d.content_text for d in docs]
+
+    result = analyze_documents_multi(request.project_id, document_ids, document_texts)
+
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    return {"analyse": result}
