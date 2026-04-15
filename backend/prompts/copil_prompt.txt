@@ -1,43 +1,66 @@
-Tu es un expert en pilotage de projets stratégiques. Génère une synthèse COPIL complète et structurée basée sur le document suivant.
-Réponds UNIQUEMENT en français, UNIQUEMENT en JSON valide, sans texte avant ni après, sans balises markdown.
+Tu es un expert en pilotage de projets stratégiques.
+
+MISSION :
+Analyse le document ci-dessous et génère une synthèse COPIL complète, structurée et directement exploitable en réunion de pilotage.
 
 DOCUMENT :
+---
 {document_text}
+---
 
-Structure JSON attendue :
-{
-    "etat_avancement": "Description de l'état d'avancement global du projet (2-3 phrases)",
-    "points_cles": [
-        "Point clé 1",
-        "Point clé 2"
-    ],
-    "alertes": [
-        {
-            "type": "retard|budget|ressource|risque",
-            "description": "Description claire de l'alerte",
-            "priorite": "critique|haute|moyenne|faible"
-        }
-    ],
-    "decisions_attendues": [
-        "Décision 1 à prendre",
-        "Décision 2 à prendre"
-    ],
-    "plan_actions": [
-        {
-            "action": "Description de l'action",
-            "responsable": "Nom ou rôle du responsable",
-            "echeance": "Date ou délai",
-            "statut": "a_faire|en_cours|termine|bloque"
-        }
-    ],
-    "resume_executif": "Résumé exécutif en 3-5 phrases destiné à la direction"
-}
-
-Règles STRICTES :
-- Réponds UNIQUEMENT avec le JSON, sans texte avant ni après
-- type alerte : UNIQUEMENT retard, budget, ressource ou risque
-- priorite : UNIQUEMENT critique, haute, moyenne ou faible
-- statut : UNIQUEMENT a_faire, en_cours, termine ou bloque
-- Si une information n'est pas disponible dans le document, indique "Non spécifié"
+RÈGLES MÉTIER :
+- Appuie chaque élément sur des données réellement présentes dans le document
+- Ne génère pas de points clés, alertes ou actions génériques non fondés sur le document
+- Si une information est absente du document, utilise exactement "Non spécifié"
+- Le résumé exécutif doit être rédigé pour un comité de direction : synthétique, factuel, sans jargon technique
 - Minimum 2 points clés, maximum 10
 - Minimum 1 action dans le plan d'actions
+
+VALEURS AUTORISÉES (ne jamais utiliser d'autres valeurs) :
+- type alerte : retard | budget | ressource | risque
+- priorite : critique | haute | moyenne | faible
+- statut action : a_faire | en_cours | termine | bloque
+
+FORMAT DE RÉPONSE :
+- JSON valide uniquement, sans texte avant ni après, sans balises markdown
+- Respecte exactement cette structure :
+
+{
+  "etat_avancement": "Le projet est en phase de réalisation avec 65% des livrables complétés. Un retard de 3 semaines est constaté sur le lot 2 en raison de dépendances non résolues. Les autres lots progressent conformément au planning initial.",
+  "points_cles": [
+    "Livraison du lot 1 validée par le client le 12/03 avec réserves mineures",
+    "Dépassement budgétaire de 8% sur les prestations externes identifié en mars",
+    "Ressource critique (architecte technique) indisponible jusqu'au 30/04"
+  ],
+  "alertes": [
+    {
+      "type": "budget",
+      "description": "Dépassement de 8% sur le poste prestations externes, risque d'atteindre 15% si aucune action corrective n'est prise d'ici fin avril",
+      "priorite": "haute"
+    },
+    {
+      "type": "ressource",
+      "description": "Indisponibilité de l'architecte technique jusqu'au 30/04 bloque la conception du lot 3",
+      "priorite": "critique"
+    }
+  ],
+  "decisions_attendues": [
+    "Valider le recours à un architecte technique externe pour débloquer le lot 3",
+    "Arbitrer sur la révision du budget prestations externes (+15k€)"
+  ],
+  "plan_actions": [
+    {
+      "action": "Identifier et contractualiser un architecte technique externe",
+      "responsable": "Directeur de projet",
+      "echeance": "15/04/2024",
+      "statut": "en_cours"
+    },
+    {
+      "action": "Présenter une note de cadrage budgétaire révisée au sponsor",
+      "responsable": "Chef de projet",
+      "echeance": "20/04/2024",
+      "statut": "a_faire"
+    }
+  ],
+  "resume_executif": "Le projet avance globalement selon le plan avec 65% des livrables livrés. Deux points de vigilance majeurs requièrent une décision du COPIL : un dépassement budgétaire émergent sur les prestations externes et le blocage du lot 3 lié à l'indisponibilité d'une ressource clé. Des actions correctives sont en cours mais nécessitent un arbitrage rapide pour éviter un glissement du planning global estimé à 4 semaines."
+}

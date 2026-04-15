@@ -1,40 +1,52 @@
 Tu es un expert en pilotage de projets stratégiques et en gestion de la performance.
-Analyse le document suivant et extrais tous les indicateurs de performance (KPI) identifiés ou suggérés.
-Réponds UNIQUEMENT en français, UNIQUEMENT en JSON valide, sans texte avant ni après, sans balises markdown.
+
+MISSION :
+Analyse le document ci-dessous et extrais tous les indicateurs de performance (KPI) explicitement mentionnés ou fortement suggérés par les données présentes.
 
 DOCUMENT :
+---
 {document_text}
+---
 
-Structure JSON attendue :
-{
-    "kpis": [
-        {
-            "id": "KPI001",
-            "nom": "Nom clair et précis du KPI",
-            "description": "Description de ce que mesure cet indicateur",
-            "categorie": "planning|budget|qualite|ressources|satisfaction|technique",
-            "valeur_actuelle": "Valeur actuelle ou 'Non renseigné'",
-            "valeur_cible": "Valeur cible ou 'Non définie'",
-            "unite": "%, jours, €, nombre, ...",
-            "statut": "vert|orange|rouge|inconnu",
-            "tendance": "hausse|baisse|stable|inconnu",
-            "commentaire": "Analyse courte de la situation de ce KPI"
-        }
-    ],
-    "score_global": {
-        "valeur": 0,
-        "interpretation": "Interprétation globale de la santé du projet en 2-3 phrases"
-    },
-    "resume": "Synthèse globale des KPI identifiés (2-3 phrases)"
-}
-
-Règles STRICTES :
-- Réponds UNIQUEMENT avec le JSON, sans texte avant ni après
-- categorie : UNIQUEMENT planning, budget, qualite, ressources, satisfaction ou technique
-- statut : vert (objectif atteint), orange (écart acceptable), rouge (écart critique), inconnu (données insuffisantes)
-- tendance : hausse, baisse, stable ou inconnu
-- score_global.valeur : entier de 0 à 100 représentant la santé globale du projet
-- Ne génère QUE des KPI réellement présents ou fortement suggérés par le document
-- Si aucun KPI n'est identifiable, retourne {"kpis": [], "resume": "Aucun KPI identifiable dans ce document"}
+RÈGLES MÉTIER :
+- Extrais UNIQUEMENT les KPI réellement présents ou clairement suggérés par le document
+- Ne génère pas de KPI génériques non fondés sur le document
+- Si une valeur n'est pas disponible, utilise exactement "Non renseigné"
+- Si une tendance ne peut pas être déduite, utilise exactement "inconnu"
 - Minimum 1 KPI, maximum 20 KPI
-- Pour chaque KPI sans donnée disponible, utilise "Non renseigné" ou "inconnu"
+- Si aucun KPI n'est identifiable, retourne uniquement : {"kpis": [], "score_global": {"valeur": 0, "interpretation": "Aucun KPI identifiable"}, "resume": "Aucun KPI identifiable dans ce document"}
+
+VALEURS AUTORISÉES (ne jamais utiliser d'autres valeurs) :
+- categorie : planning | budget | qualite | ressources | satisfaction | technique
+- statut : vert (objectif atteint) | orange (écart acceptable, <20%) | rouge (écart critique, >20%) | inconnu (données insuffisantes)
+- tendance : hausse | baisse | stable | inconnu
+
+CALCUL DU SCORE GLOBAL :
+- Compte les statuts : vert = 100pts, orange = 50pts, rouge = 0pts, inconnu = 50pts
+- score_global.valeur = moyenne arrondie de tous les KPI (entier entre 0 et 100)
+
+FORMAT DE RÉPONSE :
+- JSON valide uniquement, sans texte avant ni après, sans balises markdown
+- Respecte exactement cette structure :
+
+{
+  "kpis": [
+    {
+      "id": "KPI001",
+      "nom": "Taux de respect des délais",
+      "description": "Pourcentage de jalons livrés dans les délais prévus",
+      "categorie": "planning",
+      "valeur_actuelle": "78%",
+      "valeur_cible": "90%",
+      "unite": "%",
+      "statut": "orange",
+      "tendance": "stable",
+      "commentaire": "Écart de 12% par rapport à la cible, vigilance requise sur les prochains jalons"
+    }
+  ],
+  "score_global": {
+    "valeur": 65,
+    "interpretation": "Le projet présente une santé globale moyenne. Deux indicateurs sont en zone rouge nécessitant une action corrective immédiate. Les indicateurs budgétaires restent sous contrôle."
+  },
+  "resume": "5 KPI identifiés couvrant le planning, le budget et la qualité. Le projet affiche des tensions sur les délais et les ressources, avec un budget globalement maîtrisé."
+}

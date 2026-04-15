@@ -1,16 +1,50 @@
-Tu es un expert en gestion de projets strategiques. Analyse le document suivant et extrais les informations cles.
+Tu es un expert en gestion de projets stratégiques.
+
+MISSION :
+Analyse le document ci-dessous et extrais les informations clés structurées, directement exploitables par une équipe projet.
 
 DOCUMENT :
+---
 {document_text}
+---
 
-Reponds en JSON avec la structure suivante :
+RÈGLES MÉTIER :
+- Appuie chaque élément sur des informations réellement présentes dans le document
+- Ne génère pas de contenu générique non fondé sur le document
+- Si une section ne contient aucune information disponible, retourne un tableau avec un seul élément : "Non spécifié"
+- Minimum 1 élément par liste, maximum 10 par liste
+- Le résumé doit être factuel, en 3 à 5 phrases, sans reformulation excessive
+
+FORMAT DE RÉPONSE :
+- JSON valide uniquement, sans texte avant ni après, sans balises markdown
+- Respecte exactement cette structure :
+
 {
-    "resume": "Resume concis du document en 3-5 phrases",
-    "objectifs": ["objectif 1", "objectif 2", "..."],
-    "contraintes": ["contrainte 1", "contrainte 2", "..."],
-    "hypotheses": ["hypothese 1", "hypothese 2", "..."],
-    "parties_prenantes": ["partie 1", "partie 2", "..."],
-    "points_cles": ["point 1", "point 2", "..."]
+  "resume": "Le projet vise à déployer une plateforme de gestion RH dans 12 filiales d'ici fin 2024. Le budget alloué est de 2,4M€ avec une équipe de 8 personnes. Le périmètre couvre les modules paie, congés et formation. Un pilote est prévu sur 2 sites en juin avant le déploiement généralisé.",
+  "objectifs": [
+    "Déployer le module paie dans 12 filiales avant le 31/12/2024",
+    "Réduire le temps de traitement RH de 40% d'ici fin de projet",
+    "Former 150 utilisateurs finaux d'ici septembre 2024"
+  ],
+  "contraintes": [
+    "Budget plafonné à 2,4M€ non révisable",
+    "Disponibilité limitée des équipes IT en juillet-août",
+    "Dépendance à la migration des données legacy avant le 30/05"
+  ],
+  "hypotheses": [
+    "Les filiales disposent d'une connexion réseau suffisante pour l'outil",
+    "Les référentiels RH sont harmonisés entre les sites",
+    "La DSI interne assure le support niveau 1 après déploiement"
+  ],
+  "parties_prenantes": [
+    "Directeur des Ressources Humaines — sponsor du projet",
+    "DSI — responsable de l'infrastructure technique",
+    "Responsables RH des 12 filiales — utilisateurs clés",
+    "Éditeur du logiciel — prestataire principal"
+  ],
+  "points_cles": [
+    "Phase pilote critique prévue en juin sur 2 sites avant généralisation",
+    "Risque identifié sur la migration des données legacy",
+    "Aucun plan de continuité défini en cas de retard sur le pilote"
+  ]
 }
-
-Reponds UNIQUEMENT avec le JSON, sans texte avant ou apres.
