@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routers import documents, risks, copil, kpi, chat
 from backend.models import user, project, document, analysis
+from backend.routers import documents, risks, copil, kpi, chat, projects
+
 app = FastAPI(
     title="Agent IA - Pilotage de Projets Strategiques",
     description="API pour l'assistance intelligente au pilotage de projets",
@@ -21,6 +22,7 @@ app.include_router(risks.router)
 app.include_router(copil.router)
 app.include_router(kpi.router)
 app.include_router(chat.router)
+app.include_router(projects.router)
 
 @app.get("/")
 def root():
@@ -29,3 +31,6 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+
