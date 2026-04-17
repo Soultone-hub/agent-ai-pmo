@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from backend.database.db import get_db
 from backend.models.project import Project
+from backend.models.user import User
+from backend.services.auth_service import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects", tags=["Projets"])
@@ -12,14 +14,17 @@ router = APIRouter(prefix="/api/projects", tags=["Projets"])
 
 class CreateProjectRequest(BaseModel):
     name: str
-    owner_id: str
 
 
 @router.post("/")
-def create_project(request: CreateProjectRequest, db: Session = Depends(get_db)):
+def create_project(
+    request: CreateProjectRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     project = Project(
         id=str(uuid.uuid4()),
-        owner_id=request.owner_id,
+        owner_id=str(current_user.id),
         name=request.name,
         status="active"
     )
@@ -35,9 +40,12 @@ def create_project(request: CreateProjectRequest, db: Session = Depends(get_db))
 
 
 @router.get("/")
-def list_projects(owner_id: str, db: Session = Depends(get_db)):
+def list_projects(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     projects = db.query(Project).filter(
-        Project.owner_id == owner_id,
+        Project.owner_id == current_user.id,
         Project.status == "active"
     ).order_by(Project.created_at.desc()).all()
     return {
@@ -54,8 +62,16 @@ def list_projects(owner_id: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/{project_id}")
-def rename_project(project_id: str, request: CreateProjectRequest, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(Project.id == project_id).first()
+def rename_project(
+    project_id: str,
+    request: CreateProjectRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == current_user.id,
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Projet non trouvé")
     project.name = request.name
@@ -64,8 +80,15 @@ def rename_project(project_id: str, request: CreateProjectRequest, db: Session =
 
 
 @router.delete("/{project_id}")
-def delete_project(project_id: str, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(Project.id == project_id).first()
+def delete_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == current_user.id,
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Projet non trouvé")
     project.status = "archived"

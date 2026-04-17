@@ -4,7 +4,9 @@ from backend.database.db import get_db
 from backend.services.parser_service import parse_document
 from backend.services.rag_service import index_document
 from backend.models.document import Document
+from backend.models.user import User
 from backend.services.analysis_service import analyze_document, analyze_documents_multi
+from backend.services.auth_service import get_current_user
 from pydantic import BaseModel
 import uuid
 import os
@@ -16,7 +18,8 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 async def upload_document(
     project_id: str,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     allowed = [".pdf", ".docx", ".xlsx", ".eml"]
     ext = os.path.splitext(file.filename)[1].lower()
@@ -46,7 +49,11 @@ async def upload_document(
         os.unlink(tmp_path)
 
 @router.post("/analyze")
-async def analyze_document_endpoint(document_id: str, db: Session = Depends(get_db)):
+async def analyze_document_endpoint(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouvé")
@@ -57,13 +64,22 @@ async def analyze_document_endpoint(document_id: str, db: Session = Depends(get_
         raise HTTPException(status_code=500, detail=result["error"])
 
     return {"document_id": document_id, "analyse": result}
+
 @router.get("/")
-def list_documents(project_id: str, db: Session = Depends(get_db)):
+def list_documents(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     docs = db.query(Document).filter(Document.project_id == project_id).all()
     return {"documents": [{"id": str(d.id), "filename": d.filename, "uploaded_at": str(d.uploaded_at)} for d in docs]}
 
 @router.delete("/{document_id}")
-def delete_document(document_id: str, db: Session = Depends(get_db)):
+def delete_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouve")
@@ -72,13 +88,16 @@ def delete_document(document_id: str, db: Session = Depends(get_db)):
     return {"message": "Document supprime"}
 
 
-
 class MultiAnalyzeRequest(BaseModel):
     project_id: str
     document_ids: list[str]
 
 @router.post("/analyze-multi")
-def analyze_multi_endpoint(request: MultiAnalyzeRequest, db: Session = Depends(get_db)):
+def analyze_multi_endpoint(
+    request: MultiAnalyzeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     docs = db.query(Document).filter(
         Document.id.in_(request.document_ids)
     ).all()

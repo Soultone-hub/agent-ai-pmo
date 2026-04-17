@@ -4,19 +4,26 @@ from backend.database.db import get_db
 from backend.services.risk_service import extract_risks, extract_risks_multi
 from backend.models.document import Document
 from backend.models.analysis import Analysis
+from backend.models.user import User
+from backend.services.auth_service import get_current_user
 from pydantic import BaseModel
 import uuid
 
 router = APIRouter(prefix="/api/risks", tags=["risques"])
 
 @router.post("/extract")
-def extract_project_risks(project_id: str, document_id: str, db: Session = Depends(get_db)):
+def extract_project_risks(
+    project_id: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouve")
 
     result = extract_risks(project_id, document_id, doc.content_text)
-    
+
     analysis = Analysis(
         id=str(uuid.uuid4()),
         project_id=project_id,
@@ -31,7 +38,11 @@ def extract_project_risks(project_id: str, document_id: str, db: Session = Depen
     return result
 
 @router.get("/{project_id}")
-def get_project_risks(project_id: str, db: Session = Depends(get_db)):
+def get_project_risks(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     analysis = db.query(Analysis).filter(
         Analysis.project_id == project_id,
         Analysis.analysis_type == "risks"
@@ -43,14 +54,16 @@ def get_project_risks(project_id: str, db: Session = Depends(get_db)):
     return analysis.result_json
 
 
-
-
 class MultiRiskRequest(BaseModel):
     project_id: str
     document_ids: list[str]
 
 @router.post("/extract-multi")
-def extract_risks_multi_endpoint(request: MultiRiskRequest, db: Session = Depends(get_db)):
+def extract_risks_multi_endpoint(
+    request: MultiRiskRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     docs = db.query(Document).filter(
         Document.id.in_(request.document_ids)
     ).all()

@@ -10,6 +10,7 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    first_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=True)
     role = Column(Enum('pmo', 'chef_projet', 'direction', 'consultant', name='user_role'), nullable=False, default='pmo')
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    
+    created_at = Column(DateTime, default=datetime.datetime.now)

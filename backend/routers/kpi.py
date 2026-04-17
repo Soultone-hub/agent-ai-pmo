@@ -3,10 +3,11 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.database.db import get_db
-from backend.services.kpi_service import extract_kpis
+from backend.services.kpi_service import extract_kpis, extract_kpis_multi
 from backend.models.document import Document
 from backend.models.analysis import Analysis
-from backend.services.kpi_service import extract_kpis, extract_kpis_multi
+from backend.models.user import User
+from backend.services.auth_service import get_current_user
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,12 @@ router = APIRouter(prefix="/api/kpi", tags=["KPI"])
 
 
 @router.post("/extract")
-def extract_project_kpis(project_id: str, document_id: str, db: Session = Depends(get_db)):
+def extract_project_kpis(
+    project_id: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouvé")
@@ -39,7 +45,11 @@ def extract_project_kpis(project_id: str, document_id: str, db: Session = Depend
 
 
 @router.get("/{project_id}")
-def get_latest_kpis(project_id: str, db: Session = Depends(get_db)):
+def get_latest_kpis(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     analysis = db.query(Analysis).filter(
         Analysis.project_id == project_id,
         Analysis.analysis_type == "kpi"
@@ -52,7 +62,11 @@ def get_latest_kpis(project_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/score")
-def get_project_score(project_id: str, db: Session = Depends(get_db)):
+def get_project_score(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     analysis = db.query(Analysis).filter(
         Analysis.project_id == project_id,
         Analysis.analysis_type == "kpi"
@@ -71,7 +85,11 @@ def get_project_score(project_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/historique")
-def get_kpi_history(project_id: str, db: Session = Depends(get_db)):
+def get_kpi_history(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     analyses = db.query(Analysis).filter(
         Analysis.project_id == project_id,
         Analysis.analysis_type == "kpi"
@@ -91,14 +109,16 @@ def get_kpi_history(project_id: str, db: Session = Depends(get_db)):
     }
 
 
-
-
 class MultiKpiRequest(BaseModel):
     project_id: str
     document_ids: list[str]
 
 @router.post("/extract-multi")
-def extract_kpis_multi_endpoint(request: MultiKpiRequest, db: Session = Depends(get_db)):
+def extract_kpis_multi_endpoint(
+    request: MultiKpiRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     docs = db.query(Document).filter(
         Document.id.in_(request.document_ids)
     ).all()

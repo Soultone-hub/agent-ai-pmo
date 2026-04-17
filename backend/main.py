@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.models import user, project, document, analysis
-from backend.routers import documents, risks, copil, kpi, chat, projects
+from backend.models import user, project, document, analysis, chat_message
+from backend.routers import documents, risks, copil, kpi, chat, projects, auth
 
 app = FastAPI(
     title="Agent IA - Pilotage de Projets Strategiques",
@@ -11,12 +11,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173"],  # Frontend React (Vite)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(documents.router)
 app.include_router(risks.router)
 app.include_router(copil.router)
@@ -31,6 +32,3 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-
