@@ -9,7 +9,7 @@ from backend.services.parser_service import parse_document
 logger = logging.getLogger(__name__)
 
 client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
-model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder="./models_cache")
+model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder="./models_cache", local_files_only=True)
 
 
 def get_or_create_collection(project_id: str):
