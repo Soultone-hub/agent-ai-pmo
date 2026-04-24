@@ -6,6 +6,7 @@ from backend.services.rag_service import index_document
 from backend.models.document import Document
 from backend.models.user import User
 from backend.services.analysis_service import analyze_document, analyze_documents_multi
+from backend.services.classification_service import classify_document, get_project_checklist
 from backend.services.auth_service import get_current_user
 from pydantic import BaseModel
 import uuid
@@ -34,7 +35,7 @@ async def upload_document(
     if ext not in allowed:
         raise HTTPException(status_code=400, detail=f"Format non supporté : {ext}")
 
-    # Lire le contenu en mémoire pour vérifier la taille
+    # Vérifier la taille
     content = await file.read()
     if len(content) > MAX_FILE_SIZE_BYTES:
         size_mb = len(content) / (1024 * 1024)
@@ -56,22 +57,47 @@ async def upload_document(
         tmp_path = tmp.name
 
     try:
+        # 1. Parser le document
         text = parse_document(tmp_path)
         document_id = str(uuid.uuid4())
+
+        # 2. Indexer dans ChromaDB (RAG)
         nb_chunks = index_document(project_id, document_id, text)
 
+        # 3. Classifier automatiquement la catégorie PMO
+        category = classify_document(file.filename, text)
+
+        # 4. Persister en base
         doc = Document(
             id=document_id,
             project_id=project_id,
             filename=file.filename,
-            content_text=text
+            content_text=text,
+            category=category,
         )
         db.add(doc)
         db.commit()
 
-        return {"document_id": document_id, "filename": file.filename, "nb_chunks": nb_chunks}
+        return {
+            "document_id": document_id,
+            "filename": file.filename,
+            "nb_chunks": nb_chunks,
+            "category": category,
+        }
     finally:
         os.unlink(tmp_path)
+
+
+@router.get("/checklist/{project_id}")
+def get_checklist(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne la checklist de complétude documentaire du projet."""
+    docs = db.query(Document).filter(Document.project_id == project_id).all()
+    return get_project_checklist(docs)
+
 
 @router.post("/analyze")
 async def analyze_document_endpoint(
@@ -90,6 +116,7 @@ async def analyze_document_endpoint(
 
     return {"document_id": document_id, "analyse": result}
 
+
 @router.get("/")
 def list_documents(
     project_id: str,
@@ -97,7 +124,18 @@ def list_documents(
     current_user: User = Depends(get_current_user),
 ):
     docs = db.query(Document).filter(Document.project_id == project_id).all()
-    return {"documents": [{"id": str(d.id), "filename": d.filename, "uploaded_at": str(d.uploaded_at)} for d in docs]}
+    return {
+        "documents": [
+            {
+                "id": str(d.id),
+                "filename": d.filename,
+                "category": d.category,
+                "uploaded_at": str(d.uploaded_at),
+            }
+            for d in docs
+        ]
+    }
+
 
 @router.delete("/{document_id}")
 def delete_document(
@@ -107,10 +145,10 @@ def delete_document(
 ):
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
-        raise HTTPException(status_code=404, detail="Document non trouve")
+        raise HTTPException(status_code=404, detail="Document non trouvé")
     db.delete(doc)
     db.commit()
-    return {"message": "Document supprime"}
+    return {"message": "Document supprimé"}
 
 
 class MultiAnalyzeRequest(BaseModel):
