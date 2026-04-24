@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from backend.database.db import get_db
 from backend.services.parser_service import parse_document
@@ -8,6 +8,7 @@ from backend.models.user import User
 from backend.services.analysis_service import analyze_document, analyze_documents_multi
 from backend.services.classification_service import classify_document, get_project_checklist
 from backend.services.auth_service import get_current_user
+from backend.services.anonymization_service import anonymize, get_anonymization_summary
 from pydantic import BaseModel
 import uuid
 import os
@@ -15,13 +16,14 @@ import tempfile
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
-MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024   # 10 Mo
+MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024   # 20 Mo
 MAX_DOCS_PER_PROJECT = 50
 
 @router.post("/upload")
 async def upload_document(
     project_id: str,
     file: UploadFile = File(...),
+    anonymize_doc: bool = Query(default=False, alias="anonymize", description="Anonymiser les données personnelles (RGPD) avant indexation"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -41,7 +43,7 @@ async def upload_document(
         size_mb = len(content) / (1024 * 1024)
         raise HTTPException(
             status_code=400,
-            detail=f"Fichier trop volumineux ({size_mb:.1f} Mo). Maximum autorisé : 10 Mo."
+            detail=f"Fichier trop volumineux ({size_mb:.1f} Mo). Maximum autorisé : 20 Mo."
         )
 
     # Vérifier la limite de documents par projet
@@ -61,29 +63,42 @@ async def upload_document(
         text = parse_document(tmp_path)
         document_id = str(uuid.uuid4())
 
-        # 2. Indexer dans ChromaDB (RAG)
-        nb_chunks = index_document(project_id, document_id, text)
+        # 2. Anonymisation PII avant tout envoi au LLM ou indexation
+        anon_map: dict = {}
+        text_for_index = text
+        if anonymize_doc:
+            text_for_index, anon_map = anonymize(text)
 
-        # 3. Classifier automatiquement la catégorie PMO
-        category = classify_document(file.filename, text)
+        # 3. Indexer dans ChromaDB (RAG) — le texte indexé est anonymisé si demandé
+        nb_chunks = index_document(project_id, document_id, text_for_index)
 
-        # 4. Persister en base
+        # 4. Classifier automatiquement la catégorie PMO
+        category = classify_document(file.filename, text_for_index)
+
+        # 5. Persister en base — content_text stocke le texte anonymisé
         doc = Document(
             id=document_id,
             project_id=project_id,
             filename=file.filename,
-            content_text=text,
+            content_text=text_for_index,       # anonymisé si demandé
             category=category,
+            is_anonymized=anonymize_doc,
+            anonymization_map=anon_map if anonymize_doc else None,
         )
         db.add(doc)
         db.commit()
 
-        return {
+        response = {
             "document_id": document_id,
             "filename": file.filename,
             "nb_chunks": nb_chunks,
             "category": category,
+            "is_anonymized": anonymize_doc,
         }
+        if anonymize_doc and anon_map:
+            response["anonymization_summary"] = get_anonymization_summary(anon_map)
+
+        return response
     finally:
         os.unlink(tmp_path)
 
@@ -130,6 +145,7 @@ def list_documents(
                 "id": str(d.id),
                 "filename": d.filename,
                 "category": d.category,
+                "is_anonymized": d.is_anonymized,
                 "uploaded_at": str(d.uploaded_at),
             }
             for d in docs
