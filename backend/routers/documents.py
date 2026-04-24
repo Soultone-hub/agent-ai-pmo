@@ -8,7 +8,7 @@ from backend.models.user import User
 from backend.services.analysis_service import analyze_document, analyze_documents_multi
 from backend.services.classification_service import classify_document, get_project_checklist
 from backend.services.auth_service import get_current_user
-from backend.services.anonymization_service import anonymize, get_anonymization_summary
+from backend.services.anonymization_service import anonymize, get_anonymization_summary, deanonymize_result, merge_maps_from_docs
 from pydantic import BaseModel
 import uuid
 import os
@@ -129,6 +129,11 @@ async def analyze_document_endpoint(
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
 
+    # Dé-anonymisation avant retour au frontend
+    anon_map = merge_maps_from_docs([doc])
+    if anon_map:
+        result = deanonymize_result(result, anon_map)
+
     return {"document_id": document_id, "analyse": result}
 
 
@@ -191,5 +196,11 @@ def analyze_multi_endpoint(
 
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+
+    
+    # De-anonymisation : fusion maps docs analyses
+    anon_map = merge_maps_from_docs(docs)
+    if anon_map:
+        result = deanonymize_result(result, anon_map)
 
     return {"analyse": result}

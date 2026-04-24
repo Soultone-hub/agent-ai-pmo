@@ -6,8 +6,10 @@ from pydantic import BaseModel
 from backend.database.db import get_db
 from backend.models.user import User
 from backend.models.chat_message import ChatMessage
+from backend.models.document import Document
 from backend.services.auth_service import get_current_user
 from backend.services.rag_service import search_documents
+from backend.services.anonymization_service import deanonymize, merge_maps_from_docs
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -179,6 +181,16 @@ CONTEXTE DOCUMENTAIRE DU PROJET :
         max_tokens=2048,
     )
     reponse_text = response.choices[0].message.content
+
+    # Dé-anonymisation : si des documents du projet sont anonymisés,
+    # remplacer les placeholders dans la réponse avant stockage et affichage
+    project_docs = db.query(Document).filter(
+        Document.project_id == request.project_id,
+        Document.is_anonymized == True,
+    ).all()
+    anon_map = merge_maps_from_docs(project_docs)
+    if anon_map:
+        reponse_text = deanonymize(reponse_text, anon_map)
 
     # Persister les 2 messages avec session_id
     db.add(ChatMessage(

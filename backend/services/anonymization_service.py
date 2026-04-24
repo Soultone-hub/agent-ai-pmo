@@ -293,3 +293,21 @@ def get_anonymization_summary(mapping: dict[str, str]) -> dict:
         entity_type = placeholder.split("_")[0].lstrip("[")
         summary[entity_type] += 1
     return dict(summary)
+
+
+def merge_maps_from_docs(docs: list) -> dict[str, str]:
+    """
+    Fusionne les anonymization_map de plusieurs documents en un seul mapping.
+
+    Args:
+        docs: liste d'objets Document ORM
+
+    Returns:
+        mapping fusionné { "[PLACEHOLDER]": "valeur_réelle", ... }
+        → dict vide si aucun document n'est anonymisé
+    """
+    merged: dict[str, str] = {}
+    for doc in docs:
+        if doc.is_anonymized and doc.anonymization_map:
+            merged.update(doc.anonymization_map)
+    return merged

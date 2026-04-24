@@ -8,6 +8,7 @@ from backend.models.document import Document
 from backend.models.analysis import Analysis
 from backend.models.user import User
 from backend.services.auth_service import get_current_user
+from backend.services.anonymization_service import deanonymize_result, merge_maps_from_docs
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,11 @@ def generate_copil_report(
 
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+
+    # Dé-anonymisation du rapport COPIL (noms des participants, entreprises, etc.)
+    anon_map = merge_maps_from_docs([doc])
+    if anon_map:
+        result = deanonymize_result(result, anon_map)
 
     analysis = Analysis(
         id=str(uuid.uuid4()),
@@ -89,6 +95,7 @@ class MultiCopilRequest(BaseModel):
     project_id: str
     document_ids: list[str]
 
+
 @router.post("/generate-multi")
 def generate_copil_multi_endpoint(
     request: MultiCopilRequest,
@@ -109,6 +116,10 @@ def generate_copil_multi_endpoint(
 
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+
+    anon_map = merge_maps_from_docs(docs)
+    if anon_map:
+        result = deanonymize_result(result, anon_map)
 
     analysis = Analysis(
         id=str(uuid.uuid4()),

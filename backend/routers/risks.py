@@ -6,10 +6,12 @@ from backend.models.document import Document
 from backend.models.analysis import Analysis
 from backend.models.user import User
 from backend.services.auth_service import get_current_user
+from backend.services.anonymization_service import deanonymize_result, merge_maps_from_docs
 from pydantic import BaseModel
 import uuid
 
 router = APIRouter(prefix="/api/risks", tags=["risques"])
+
 
 @router.post("/extract")
 def extract_project_risks(
@@ -22,7 +24,13 @@ def extract_project_risks(
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouve")
 
+    # LLM reçoit le texte (potentiellement anonymisé si is_anonymized=True)
     result = extract_risks(project_id, document_id, doc.content_text)
+
+    # Dé-anonymisation avant stockage et retour au frontend
+    anon_map = merge_maps_from_docs([doc])
+    if anon_map:
+        result = deanonymize_result(result, anon_map)
 
     analysis = Analysis(
         id=str(uuid.uuid4()),
@@ -36,6 +44,7 @@ def extract_project_risks(
     db.commit()
 
     return result
+
 
 @router.get("/{project_id}/historique")
 def get_risks_history(
@@ -87,6 +96,7 @@ class MultiRiskRequest(BaseModel):
     project_id: str
     document_ids: list[str]
 
+
 @router.post("/extract-multi")
 def extract_risks_multi_endpoint(
     request: MultiRiskRequest,
@@ -104,6 +114,11 @@ def extract_risks_multi_endpoint(
     document_texts = [d.content_text for d in docs]
 
     result = extract_risks_multi(request.project_id, document_ids, document_texts)
+
+    # Dé-anonymisation : fusion des maps de tous les documents impliqués
+    anon_map = merge_maps_from_docs(docs)
+    if anon_map:
+        result = deanonymize_result(result, anon_map)
 
     analysis = Analysis(
         id=str(uuid.uuid4()),

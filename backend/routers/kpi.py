@@ -8,6 +8,7 @@ from backend.models.document import Document
 from backend.models.analysis import Analysis
 from backend.models.user import User
 from backend.services.auth_service import get_current_user
+from backend.services.anonymization_service import deanonymize_result, merge_maps_from_docs
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,11 @@ def extract_project_kpis(
 
     if not result.get("kpis"):
         raise HTTPException(status_code=422, detail="Aucun KPI identifiable dans ce document")
+
+    # Dé-anonymisation des libellés / descriptions de KPI
+    anon_map = merge_maps_from_docs([doc])
+    if anon_map:
+        result = deanonymize_result(result, anon_map)
 
     analysis = Analysis(
         id=str(uuid.uuid4()),
@@ -113,6 +119,7 @@ class MultiKpiRequest(BaseModel):
     project_id: str
     document_ids: list[str]
 
+
 @router.post("/extract-multi")
 def extract_kpis_multi_endpoint(
     request: MultiKpiRequest,
@@ -130,6 +137,10 @@ def extract_kpis_multi_endpoint(
     document_texts = [d.content_text for d in docs]
 
     result = extract_kpis_multi(request.project_id, document_ids, document_texts)
+
+    anon_map = merge_maps_from_docs(docs)
+    if anon_map:
+        result = deanonymize_result(result, anon_map)
 
     analysis = Analysis(
         id=str(uuid.uuid4()),
