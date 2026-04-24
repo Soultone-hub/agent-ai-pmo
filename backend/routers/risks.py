@@ -37,6 +37,35 @@ def extract_project_risks(
 
     return result
 
+@router.get("/{project_id}/historique")
+def get_risks_history(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    analyses = db.query(Analysis).filter(
+        Analysis.project_id == project_id,
+        Analysis.analysis_type == "risks"
+    ).order_by(Analysis.created_at.desc()).all()
+
+    return {
+        "total": len(analyses),
+        "historique": [
+            {
+                "id": str(a.id),
+                "created_at": str(a.created_at),
+                "nb_risques": len(a.result_json.get("risks", [])),
+                "nb_critiques": sum(
+                    1 for r in a.result_json.get("risks", [])
+                    if r.get("niveau") == "critique"
+                ),
+                "resume": a.result_json.get("resume", "")[:120],
+            }
+            for a in analyses
+        ]
+    }
+
+
 @router.get("/{project_id}")
 def get_project_risks(
     project_id: str,

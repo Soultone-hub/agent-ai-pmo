@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.models import user, project, document, analysis, chat_message
-from backend.routers import documents, risks, copil, kpi, chat, projects, auth
+from backend.routers import documents, risks, copil, kpi, chat, projects, auth, analyses
 
 app = FastAPI(
     title="Agent IA - Pilotage de Projets Strategiques",
@@ -24,6 +24,7 @@ app.include_router(copil.router)
 app.include_router(kpi.router)
 app.include_router(chat.router)
 app.include_router(projects.router)
+app.include_router(analyses.router)
 
 @app.get("/")
 def root():
