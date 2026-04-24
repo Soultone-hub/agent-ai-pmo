@@ -24,10 +24,15 @@ async def upload_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    allowed = [".pdf", ".docx", ".xlsx", ".eml"]
+    allowed = [".pdf", ".docx", ".xlsx", ".eml", ".pptx"]
     ext = os.path.splitext(file.filename)[1].lower()
+    if ext == ".ppt":
+        raise HTTPException(
+            status_code=400,
+            detail="Le format .ppt (PowerPoint ancien) n'est pas supporté. Ouvrez le fichier dans PowerPoint et enregistrez-le en .pptx."
+        )
     if ext not in allowed:
-        raise HTTPException(status_code=400, detail=f"Format non supporte : {ext}")
+        raise HTTPException(status_code=400, detail=f"Format non supporté : {ext}")
 
     # Lire le contenu en mémoire pour vérifier la taille
     content = await file.read()

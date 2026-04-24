@@ -1,6 +1,8 @@
 import fitz  # PyMuPDF
 from docx import Document
 from openpyxl import load_workbook
+from pptx import Presentation
+from pptx.util import Pt
 import os
 import email
 from email import policy
@@ -31,6 +33,35 @@ def parse_xlsx(file_path: str) -> str:
                 text += row_text + "\n"
     return text
 
+def parse_pptx(file_path: str) -> str:
+    """Extrait le texte de toutes les diapositives d'un fichier PPTX."""
+    prs = Presentation(file_path)
+    text = ""
+    for slide_num, slide in enumerate(prs.slides, start=1):
+        text += f"\n--- Diapositive {slide_num} ---\n"
+        for shape in slide.shapes:
+            # Titre et contenus texte
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    line = para.text.strip()
+                    if line:
+                        text += line + "\n"
+            # Tables
+            if shape.has_table:
+                for row in shape.table.rows:
+                    row_text = " | ".join(
+                        cell.text.strip() for cell in row.cells if cell.text.strip()
+                    )
+                    if row_text:
+                        text += row_text + "\n"
+        # Notes du présentateur
+        if slide.has_notes_slide:
+            notes = slide.notes_slide.notes_text_frame.text.strip()
+            if notes:
+                text += f"[Notes] {notes}\n"
+    return text
+
+
 def parse_document(file_path: str) -> str:
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".pdf":
@@ -41,6 +72,10 @@ def parse_document(file_path: str) -> str:
         return parse_xlsx(file_path)
     elif ext == ".eml":
         return parse_eml(file_path)
+    elif ext == ".pptx":
+        return parse_pptx(file_path)
+    elif ext == ".ppt":
+        raise ValueError("Le format .ppt (PowerPoint ancien) n'est pas supporté. Convertissez en .pptx.")
     else:
         raise ValueError(f"Format non supporté: {ext}")
     
