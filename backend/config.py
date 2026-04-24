@@ -11,5 +11,6 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"   # ignorer les variables d'env non déclarées (ex: TRANSFORMERS_OFFLINE)
 
 settings = Settings()
