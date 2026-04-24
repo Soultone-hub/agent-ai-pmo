@@ -14,6 +14,9 @@ import tempfile
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024   # 10 Mo
+MAX_DOCS_PER_PROJECT = 50
+
 @router.post("/upload")
 async def upload_document(
     project_id: str,
@@ -26,8 +29,25 @@ async def upload_document(
     if ext not in allowed:
         raise HTTPException(status_code=400, detail=f"Format non supporte : {ext}")
 
+    # Lire le contenu en mémoire pour vérifier la taille
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE_BYTES:
+        size_mb = len(content) / (1024 * 1024)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Fichier trop volumineux ({size_mb:.1f} Mo). Maximum autorisé : 10 Mo."
+        )
+
+    # Vérifier la limite de documents par projet
+    doc_count = db.query(Document).filter(Document.project_id == project_id).count()
+    if doc_count >= MAX_DOCS_PER_PROJECT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Limite atteinte : ce projet contient déjà {doc_count} documents (maximum : {MAX_DOCS_PER_PROJECT})."
+        )
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-        tmp.write(await file.read())
+        tmp.write(content)
         tmp_path = tmp.name
 
     try:
