@@ -9,10 +9,11 @@ import datetime
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    role = Column(Enum('user', 'assistant', name='message_role'), nullable=False)
-    content = Column(Text, nullable=False)
+    session_id = Column(String(36), nullable=True, index=True)   # UUID string — NULL = messages legacy
+    role       = Column(Enum('user', 'assistant', name='message_role'), nullable=False)
+    content    = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.now)
 
     project = relationship("Project", backref="chat_messages")
