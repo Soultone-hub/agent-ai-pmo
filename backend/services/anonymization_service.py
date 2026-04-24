@@ -1,5 +1,5 @@
 """
-Service d'anonymisation PII locale — conformité RGPD.
+Service d'anonymisation PII locale — protection des données personnelles (RGPD/loi béninoise).
 
 Principle : tout ce qui peut relier le projet à une personne physique est masqué.
 Les données analytiques (montants, dates, métriques) sont CONSERVÉES intactes.
@@ -7,19 +7,20 @@ Les données analytiques (montants, dates, métriques) sont CONSERVÉES intactes
 GROQ ne voit JAMAIS les données sensibles.
 
 Entités anonymisées :
-  - NOM_PROPRE  : "Jean-Pierre Dupont" → [NOM_PROPRE_1]
-  - EMAIL       : "jean@acme.fr"       → [EMAIL_1]
-  - TELEPHONE   : "06 12 34 56 78"     → [TELEPHONE_1]
-  - ADRESSE     : "12 rue de la Paix"  → [ADRESSE_1]
-  - VILLE       : "Lyon", "Bordeaux"   → [VILLE_1]
-  - IBAN        : "FR76 3000..."        → [IBAN_1]
-  - SIRET       : "123 456 789 01234"  → [SIRET_1]
-  - CARTE_CB    : "4111 1111 1111 1111"→ [CARTE_CB_1]
-  - IP          : "192.168.1.1"        → [IP_1]
+  - NOM_PROPRE  : "Koffi Adjovi"         → [NOM_PROPRE_1]
+  - EMAIL       : "koffi@entreprise.bj"  → [EMAIL_1]
+  - TELEPHONE   : "+229 97 12 34 56"     → [TELEPHONE_1]
+  - ADRESSE     : "12 rue du Commerce"   → [ADRESSE_1]
+  - VILLE       : "Cotonou", "Parakou"   → [VILLE_1]
+  - IBAN        : "BJ89 XXX..."          → [IBAN_1]
+  - IFU         : "1234567890123"        → [IFU_1]
+  - RCCM        : "RB/COT/2021/B/1234"  → [RCCM_1]
+  - CARTE_CB    : "4111 1111 1111 1111" → [CARTE_CB_1]
+  - IP          : "192.168.1.1"          → [IP_1]
 
 Données CONSERVÉES (utiles à l'analyse PMO) :
-  - Montants financiers  : 150 000 €, 1,2 M€
-  - Dates / délais       : 15/04/2026, Q3 2026
+  - Montants financiers  : 500 000 FCFA, 1,2 million FCFA
+  - Dates / délais       : 15/04/2026, T3 2026
   - Métriques / KPI      : 87%, 3 jours de retard
 """
 
@@ -29,39 +30,48 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
-# ── Liste des villes françaises les plus courantes ────────────────────────────
-# (utilisée pour détecter les villes isolées hors contexte d'adresse)
-VILLES_FRANCE = {
-    "Paris", "Marseille", "Lyon", "Toulouse", "Nice", "Nantes", "Strasbourg",
-    "Montpellier", "Bordeaux", "Lille", "Rennes", "Reims", "Le Havre", "Toulon",
-    "Grenoble", "Dijon", "Angers", "Nîmes", "Villeurbanne", "Saint-Étienne",
-    "Clermont-Ferrand", "Le Mans", "Aix-en-Provence", "Brest", "Tours",
-    "Amiens", "Limoges", "Annecy", "Perpignan", "Boulogne-Billancourt",
-    "Metz", "Besançon", "Orléans", "Mulhouse", "Rouen", "Caen", "Nancy",
-    "Saint-Denis", "Argenteuil", "Paul", "Montreuil", "Versailles",
-    "Nanterre", "Créteil", "Avignon", "Poitiers", "Colombes", "Fort-de-France",
-    "Courbevoie", "Vitry-sur-Seine", "Rueil-Malmaison", "La Rochelle",
-    "Dunkerque", "Cannes", "Antibes", "Bayonne", "Épinal", "Quimper",
-    "Lorient", "Valence", "Pau", "Calais", "Bourges", "Troyes",
-    "Issy-les-Moulineaux", "Levallois-Perret", "Ajaccio", "Liège",
-    "Genève", "Lausanne", "Bruxelles", "Luxembourg", "Monaco",
-    "Londres", "Berlin", "Madrid", "Rome", "Lisbonne", "Amsterdam",
-    "Casablanca", "Tunis", "Alger", "Dakar", "Abidjan",
+# ── Villes du Bénin et de la sous-région Afrique de l'Ouest ───────────────────
+VILLES_AFRIQUE_OUEST = {
+    # Bénin
+    "Cotonou", "Porto-Novo", "Parakou", "Djougou", "Bohicon", "Kandi",
+    "Ouidah", "Abomey-Calavi", "Lokossa", "Natitingou", "Malanville",
+    "Abomey", "Tchaourou", "Bembereke", "Nikki", "Savalou", "Savé",
+    "Dassa-Zoumé", "Kpomassè", "Calavi", "Semes",
+    # Togo
+    "Lomé", "Sokodé", "Kara", "Palimé", "Atakpamé", "Tsevié",
+    # Nigeria
+    "Lagos", "Abuja", "Ibadan", "Kano", "Kaduna", "Port Harcourt",
+    # Ghana
+    "Accra", "Kumasi", "Tamale",
+    # Côte d'Ivoire
+    "Abidjan", "Yamoussoukro", "Bouaké",
+    # Sénégal
+    "Dakar", "Thiès", "Saint-Louis",
+    # Niger
+    "Niamey", "Zinder", "Maradi",
+    # Burkina Faso
+    "Ouagadougou", "Bobo-Dioulasso",
+    # Mali
+    "Bamako", "Sikasso",
+    # Autres capitales régionales
+    "Yaoundé", "Douala", "Libreville", "Brazzaville", "Kinshasa",
+    "Lompo", "Conakry", "Freetown", "Monrovia", "Bissau",
 }
 
-# Préfixes de voies pour la détection d'adresses
+# Préfixes de voies pour la détection d'adresses (multilingual : fr + local)
 TYPES_VOIE = (
     r"(?:rue|avenue|boulevard|blvd|bd|allée|impasse|place|chemin|route|voie"
-    r"|passage|cour|square|résidence|villa|hameau|lotissement|quartier"
-    r"|cité|domaine|parc|zone|zi|zac|za|zae|zui)"
+    r"|passage|cour|square|résidence|villa|quartier|cé|lot|ilôt|carré"
+    r"|cité|domaine|zone|carrefour|rond-point)"
 )
 
 # ── Patterns PII (ordre : du plus spécifique au plus général) ─────────────────
 ENTITY_PATTERNS = [
-    # IBAN — très structuré
+    # IBAN UEMOA/Bénin (BJ + codes des pays membres : BF, CI, GW, ML, NE, SN, TG)
+    # Format : 2 lettres pays + 2 chiffres clé + jusqu'à 24 caractères
     (
         "IBAN",
-        r"\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]{4}){4,7}\b",
+        r"\b(?:BJ|BF|CI|GW|ML|NE|SN|TG|[A-Z]{2})\d{2}(?:[\s-]?[A-Z0-9]{4}){4,7}\b",
     ),
 
     # Carte bancaire (16 chiffres groupés)
@@ -70,16 +80,17 @@ ENTITY_PATTERNS = [
         r"\b(?:\d{4}[\s\-]?){3}\d{4}\b",
     ),
 
-    # SIRET (14 chiffres) — avant SIREN pour matcher le plus long d'abord
+    # IFU (Identifiant Fiscal Unique du Bénin — 13 chiffres)
     (
-        "SIRET",
-        r"\b\d{3}[\s.]?\d{3}[\s.]?\d{3}[\s.]?\d{5}\b",
+        "IFU",
+        r"\bIFU\s*:?\s*\d{13}\b|\b\d{13}\b",
     ),
 
-    # SIREN (9 chiffres)
+    # RCCM (Registre du Commerce et du Crédit Mobilier)
+    # Format ex: RB/COT/2021/B/1234 ou RF/LME/2020/A/5678
     (
-        "SIREN",
-        r"\b\d{3}[\s.]?\d{3}[\s.]?\d{3}\b",
+        "RCCM",
+        r"\bR[A-Z]/[A-Z]{2,4}/\d{4}/[A-Z]/\d+\b",
     ),
 
     # Email
@@ -88,13 +99,15 @@ ENTITY_PATTERNS = [
         r"\b[\w.+%-]+@[\w.-]+\.[a-zA-Z]{2,}\b",
     ),
 
-    # Téléphone français (fixe, mobile, international)
+    # Téléphone Bénin (+229) et Afrique de l'Ouest
+    # Bénin: +229 XX XX XX XX (8 chiffres) ou 00229...
+    # Formats régionaux : +225, +228, +234, +221, +226, +223, +227
     (
         "TELEPHONE",
         (
             r"\b(?:"
-            r"(?:\+33|0033)[\s.\-]?[1-9](?:[\s.\-]?\d{2}){4}"
-            r"|0[1-9](?:[\s.\-]?\d{2}){4}"
+            r"(?:\+|00)(?:229|225|228|234|221|226|223|227|237|241|242)\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}"
+            r"|(?:97|98|99|90|91|94|95|96|01)\s?\d{2}\s?\d{2}\s?\d{2}"
             r")\b"
         ),
     ),
@@ -104,17 +117,11 @@ ENTITY_PATTERNS = [
         "ADRESSE",
         (
             r"\b\d{1,4}(?:\s*(?:bis|ter|quater))?"
-            r"\s+" + TYPES_VOIE + r"\s+[A-Za-zÀ-ÿ\s'\-]{2,40}\b"
+            r"\s+" + TYPES_VOIE + r"\s+[A-Za-z\xC0-\xFF\s'\-]{2,40}\b"
         ),
     ),
 
-    # Code postal (5 chiffres français — souvent suivi d'une ville)
-    (
-        "CODE_POSTAL",
-        r"\b(?:0[1-9]|[1-8]\d|9[0-5]|97[1-6])\d{3}\b",
-    ),
-
-    # URL personnelle (on garde les domaines génériques, exclut les grandes plateformes)
+    # URL personnelle
     (
         "URL",
         r"https?://(?!(?:www\.)?(?:google|microsoft|amazon|github|wikipedia)\.)[^\s\"'<>]+",
@@ -144,25 +151,31 @@ NOM_PROPRE_WHITELIST: set[str] = {
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
     "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
     "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche",
-    # Titres et fonctions (sans nom de famille attaché)
+    # Titres et fonctions
     "Monsieur", "Madame", "Directeur", "Directrice", "Président", "Chef",
     "Responsable", "Manager", "Ingénieur", "Consultant", "Architecte",
+    "Coordinateur", "Coordonnatrice", "Représentant", "Délégué",
     # Termes PMO
     "Charte", "Cadrage", "Annexe", "Article", "Section", "Phase", "Étape",
     "Version", "Rapport", "Projet", "Budget", "Planning", "Cahier", "Charges",
     "Comité", "Pilotage", "Copil", "Direction", "Générale", "Stratégie",
-    # Organisations génériques reconnaissables
+    # Institutions béninoises et africaines
+    "Ministère", "Direction Générale", "Office Nationale", "Agence Nationale",
+    "Gouvernement", "Présidence", "République", "Bénin",
+    "UEMOA", "CEDEAO", "BCEAO", "BIDC", "BAD", "PNUD", "UNICEF", "OMS",
+    # Grandes organisations tech
     "Microsoft", "Google", "Amazon", "Apple", "Oracle", "SAP", "IBM",
-    "Salesforce", "Capgemini", "Accenture", "Sopra", "Sopra Steria",
-    # Pays et grandes régions
-    "France", "Europe", "Afrique", "Asie", "Amérique", "Royaume-Uni",
-    "Île-de-France", "Auvergne-Rhône-Alpes",
-} | VILLES_FRANCE  # Les villes sont gérées séparément, mais on les exclut du NOM_PROPRE
+    # Pays et régions
+    "Afrique", "Asie", "Amérique", "Europe",
+    "Afrique Ouest", "Afrique Centrale", "Sahel",
+    "Nigeria", "Ghana", "Togo", "Niger", "Burkina", "Mali",
+    "Sénégal", "Côte Ivoire", "Cameroun", "Gabon",
+} | VILLES_AFRIQUE_OUEST  # Les villes sont exclues du pattern NOM_PROPRE
 
 
 def _detect_ville(text: str, counters: dict, real_to_placeholder: dict) -> None:
     """Détecte les noms de villes connus dans le texte."""
-    for ville in VILLES_FRANCE:
+    for ville in VILLES_AFRIQUE_OUEST:
         pattern = r"\b" + re.escape(ville) + r"\b"
         if re.search(pattern, text, re.UNICODE):
             if ville not in real_to_placeholder:
