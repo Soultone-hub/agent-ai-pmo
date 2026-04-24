@@ -24,7 +24,7 @@ Données CONSERVÉES (utiles à l'analyse PMO) :
   - Métriques / KPI      : 87%, 3 jours de retard
 """
 
-import re
+import regex as re   # pip install regex — supérieur à stdlib re : Unicode \p{Lu} \p{Ll}, lookbehind variable, groupes atomiques
 import logging
 from collections import defaultdict
 
@@ -106,8 +106,13 @@ ENTITY_PATTERNS = [
         "TELEPHONE",
         (
             r"\b(?:"
-            r"(?:\+|00)(?:229|225|228|234|221|226|223|227|237|241|242)\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}"
-            r"|(?:97|98|99|90|91|94|95|96|01)\s?\d{2}\s?\d{2}\s?\d{2}"
+            r"(?:\+|00)229\s?(?:01\d(?:\s?\d){7}|(?:97|98|99|90|91|94|95|96)\d(?:\s?\d){5})"
+            r"|(?:\+|00)(?:225|228|221|226|223|227)\s?\d(?:\s?\d){7}"
+            r"|(?:\+|00)234\s?\d(?:\s?\d){9}"
+            r"|(?:\+|00)33\s?[1-9](?:\s?\d{2}){4}"
+            r"|0[1-9](?:\s?\d{2}){4}"
+            r"|01\d(?:\s?\d){7}"
+            r"|(?:97|98|99|90|91|94|95|96)\d(?:\s?\d){5}"
             r")\b"
         ),
     ),
@@ -134,13 +139,15 @@ ENTITY_PATTERNS = [
     ),
 
     # Noms propres : 2 à 4 mots avec majuscule initiale
-    # Heuristique : pas en début de phrase (précédé d'un espace ou ponctuation)
+    # \p{Lu} = toute lettre majuscule Unicode, \p{Ll} = minuscule
+    # Fonctionne avec la lib 'regex' (pas stdlib re)
+    # Ex: Koffi Adjovi, Jean-Baptiste Ahossou, Dossou Rodrigue
     (
         "NOM_PROPRE",
         (
-            r"(?<=[,;:\s\(«»\"\'])?"
-            r"\b[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜŸÆŒ][a-zàâäéèêëîïôùûüÿæœ\-]+"
-            r"(?:\s+[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜŸÆŒ][a-zàâäéèêëîïôùûüÿæœ\-]+){1,3}\b"
+            r"\b\p{Lu}[\p{Ll}\p{Lu}'\u2019\-]+"
+            r"(?:\s+(?:\p{Ll}{1,3}\s+)?"
+            r"\p{Lu}[\p{Ll}\p{Lu}'\u2019\-]+){1,3}\b"
         ),
     ),
 ]
