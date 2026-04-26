@@ -2,7 +2,6 @@ import fitz  # PyMuPDF
 from docx import Document
 from openpyxl import load_workbook
 from pptx import Presentation
-from pptx.util import Pt
 import os
 import email
 from email import policy
