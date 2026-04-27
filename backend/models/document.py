@@ -22,7 +22,6 @@ class Document(Base):
     id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id       = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     filename         = Column(String(255), nullable=False)
-    doc_type         = Column(Enum('rapport', 'cr_reunion', 'planning', 'autre', name='doc_type'), default='autre')
     category         = Column(String(50), nullable=True, default="autre")
     content_text     = Column(Text)
     # ── Anonymisation ──────────────────────────────────────────
