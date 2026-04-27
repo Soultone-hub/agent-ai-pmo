@@ -165,7 +165,20 @@ ENTITY_PATTERNS = [
 
 # ── Sigles/acronymes en MAJUSCULES qui ne sont PAS des noms de personnes ──────
 ACRONYMS_WHITELIST: set[str] = {
-    # Gestion de projet
+    # Mois et jours
+    "JANVIER", "FÉVRIER", "MARS", "AVRIL", "MAI", "JUIN",
+    "JUILLET", "AOÛT", "SEPTEMBRE", "OCTOBRE", "NOVEMBRE", "DÉCEMBRE",
+    "LUNDI", "MARDI", "MERCREDI", "JEUDI", "VENDREDI", "SAMEDI", "DIMANCHE",
+    # Titres et fonctions
+    "MONSIEUR", "MADAME", "DIRECTEUR", "DIRECTRICE", "PRÉSIDENT", "CHEF",
+    "RESPONSABLE", "MANAGER", "INGÉNIEUR", "CONSULTANT", "ARCHITECTE",
+    "COORDINATEUR", "COORDONNATRICE", "REPRÉSENTANT", "DÉLÉGUÉ",
+    # Gestion de projet / Termes PMO
+    "CHARTE", "CADRAGE", "ANNEXE", "ARTICLE", "SECTION", "PHASE", "ÉTAPE",
+    "VERSION", "RAPPORT", "PROJET", "BUDGET", "PLANNING", "CAHIER", "CHARGES",
+    "COMITÉ", "PILOTAGE", "DIRECTION", "GÉNÉRALE", "STRATÉGIE", "DÉVELOPPEMENT",
+    "PROTOTYPE", "FONCTIONNEL", "ANALYSE", "ARCHITECTURE", "LOGICIELLE",
+    "INFORMATIQUE", "SCIENCES", "FILIÈRE", "ACADÉMIQUE", "THÈME",
     "PMO", "COPIL", "SCRUM", "AGILE", "KPI",
     "EF1", "EF2", "EF3", "EF4", "EF5", "EF6", "EF7",
     # Tech & IA
@@ -175,13 +188,17 @@ ACRONYMS_WHITELIST: set[str] = {
     "PDF", "DOCX", "XLSX", "PPTX", "CSV", "EML", "MSG",
     # Infra
     "VPS", "RAM", "CPU", "GPU", "CI", "CD",
-    # Institutions béninoises / africaines
+    # Institutions, Pays et Régions
+    "MINISTÈRE", "GOUVERNEMENT", "PRÉSIDENCE", "RÉPUBLIQUE", "BÉNIN",
+    "AFRIQUE", "ASIE", "AMÉRIQUE", "EUROPE", "OUEST", "CENTRALE", "SAHEL",
+    "NIGERIA", "GHANA", "TOGO", "NIGER", "BURKINA", "MALI", "SÉNÉGAL",
+    "CÔTE", "IVOIRE", "CAMEROUN", "GABON",
     "ESGIS", "UEMOA", "CEDEAO", "BCEAO", "BIDC", "BAD", "PNUD", "UNICEF",
     "OMS", "FAO", "UNESCO", "APDP",
     # Monnaies
     "FCFA", "CFA",
     # Divers
-    "NB", "PS", "RH", "DG", "DRH", "DSI", "CTO", "CEO", "PDG", "NovaTech",
+    "NB", "PS", "RH", "DG", "DRH", "DSI", "CTO", "CEO", "PDG", "NOVATECH",
 }
 
 # ── Mots Title Case fréquents dans les documents PMO (faux positifs whitelist) ─
@@ -192,12 +209,25 @@ NOM_PROPRE_WHITELIST: set[str] = {
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
     "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
     "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche",
+    # Titres et fonctions
+    "Monsieur", "Madame", "Directeur", "Directrice", "Président", "Chef",
+    "Responsable", "Manager", "Ingénieur", "Consultant", "Architecte",
+    "Coordinateur", "Coordonnatrice", "Représentant", "Délégué",
+    # Termes PMO courants
+    "Charte", "Cadrage", "Annexe", "Article", "Section", "Phase", "Étape",
+    "Version", "Rapport", "Projet", "Budget", "Planning", "Cahier", "Charges",
+    "Comité", "Pilotage", "Copil", "Direction", "Générale", "Stratégie",
+    "Développement", "Prototype", "Fonctionnel", "Analyse", "Architecture",
+    "Logicielle", "Informatique", "Sciences", "Filière", "Académique", "Thème",
+    # Institutions béninoises et africaines
+    "Ministère", "Gouvernement", "Présidence", "République", "Bénin",
+    "Afrique", "Asie", "Amérique", "Europe", "Ouest", "Centrale", "Sahel",
+    "Nigeria", "Ghana", "Togo", "Niger", "Burkina", "Mali", "Sénégal",
+    "Côte", "Ivoire", "Cameroun", "Gabon",
     # Institutions / marques connues
     "Microsoft", "Google", "Amazon", "Apple", "Oracle", "SAP", "IBM",
     "PostgreSQL", "ChromaDB", "FastAPI", "React", "Streamlit",
-    "GitHub", "Hetzner", "Groq", "LLaMA",
-    # Organisations
-    "Bénin", "République",
+    "GitHub", "Hetzner", "Groq", "LLaMA", "NovaTech",
 } | VILLES_AFRIQUE_OUEST
 
 
