@@ -6,25 +6,116 @@ from sentence_transformers import SentenceTransformer
 from backend.config import settings
 from backend.services.parser_service import parse_document
 
+# Forcer le mode hors-ligne absolu pour HuggingFace et Transformers
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 logger = logging.getLogger(__name__)
 
-client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
-model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder="./models_cache", local_files_only=True)
+# Désactiver la télémétrie de ChromaDB qui peut bloquer le démarrage sans internet
+chroma_settings = chromadb.config.Settings(anonymized_telemetry=False)
+client = chromadb.PersistentClient(path=settings.CHROMA_PATH, settings=chroma_settings)
+
+# Résolution dynamique du chemin local absolu du modèle pour contourner les bugs de connexion de transformers
+model_name = "paraphrase-multilingual-MiniLM-L12-v2"
+model_dir = f"models--sentence-transformers--{model_name}"
+snapshots_dir = os.path.join("./models_cache", model_dir, "snapshots")
+
+# Par défaut on essaie avec le nom du modèle (sera utilisé lors du premier téléchargement)
+model_path = model_name
+
+# S'il est déjà téléchargé, on trouve le dossier de snapshot local et on pointe directement dessus
+if os.path.exists(snapshots_dir):
+    snapshots = os.listdir(snapshots_dir)
+    if snapshots:
+        # On prend le premier snapshot trouvé (son hash)
+        model_path = os.path.join(snapshots_dir, snapshots[0])
+
+# Chargement du modèle (100% hors ligne si le model_path est un chemin local)
+model = SentenceTransformer(model_path, cache_folder="./models_cache", local_files_only=True)
 
 
 def get_or_create_collection(project_id: str):
     return client.get_or_create_collection(name=f"project_{project_id}")
 
 
-def split_text(text: str, chunk_size: int = 512, overlap: int = 50) -> list:
-    words = text.split()
-    chunks = []
-    i = 0
-    while i < len(words):
-        chunk = " ".join(words[i:i + chunk_size])
-        chunks.append(chunk)
-        i += chunk_size - overlap
-    return chunks
+def split_text(text: str, chunk_size: int = 1500, overlap: int = 150) -> list:
+    """
+    Découpage sémantique récursif similaire à RecursiveCharacterTextSplitter.
+    Tente de découper par paragraphes, puis par phrases, puis par mots,
+    pour respecter la limite de `chunk_size` caractères tout en gardant le sens.
+    """
+    separators = ["\n\n", "\n", ". ", " ", ""]
+    
+    def _split(text_to_split: str, current_separators: list) -> list:
+        # Trouver le premier séparateur présent dans le texte
+        separator = current_separators[-1]
+        new_separators = []
+        for i, sep in enumerate(current_separators):
+            if sep == "" or sep in text_to_split:
+                separator = sep
+                new_separators = current_separators[i + 1:]
+                break
+                
+        # Diviser le texte
+        splits = text_to_split.split(separator) if separator else list(text_to_split)
+        
+        # Reconstruire les chunks en respectant la taille maximale
+        chunks = []
+        current_chunk = []
+        current_length = 0
+        
+        for s in splits:
+            if not s.strip():
+                continue
+                
+            # Si un segment est toujours trop grand, on le re-divise récursivement
+            if len(s) > chunk_size and new_separators:
+                if current_chunk:
+                    chunks.append(separator.join(current_chunk))
+                    current_chunk = []
+                    current_length = 0
+                chunks.extend(_split(s, new_separators))
+                continue
+                
+            # Test si l'ajout du segment dépasse la taille autorisée
+            new_len = current_length + len(s) + (len(separator) if current_chunk else 0)
+            if new_len > chunk_size and current_chunk:
+                # Sauvegarder le chunk actuel
+                chunks.append(separator.join(current_chunk))
+                
+                # Gérer le chevauchement (overlap)
+                overlap_chunk = []
+                overlap_len = 0
+                for c in reversed(current_chunk):
+                    if overlap_len + len(c) <= overlap:
+                        overlap_chunk.insert(0, c)
+                        overlap_len += len(c) + len(separator)
+                    else:
+                        break
+                current_chunk = overlap_chunk
+                current_chunk.append(s)
+                current_length = sum(len(c) for c in current_chunk) + len(separator) * (max(0, len(current_chunk) - 1))
+            else:
+                current_chunk.append(s)
+                current_length += len(s) + (len(separator) if current_chunk else 0)
+                
+        if current_chunk:
+            chunks.append(separator.join(current_chunk))
+            
+        return chunks
+
+    # Lancer le découpage
+    final_chunks = _split(text, separators)
+    
+    # Restauration de la ponctuation pour le séparateur ". "
+    if ". " in separators:
+        for i in range(len(final_chunks)):
+            if not final_chunks[i].endswith(".") and not final_chunks[i].endswith("\n"):
+                final_chunks[i] += "."
+                
+    return final_chunks
+
 
 
 def index_document(project_id: str, document_id: str, text: str) -> int:

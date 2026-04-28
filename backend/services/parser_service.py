@@ -7,11 +7,10 @@ import email
 from email import policy
 
 def parse_pdf(file_path: str) -> str:
-    doc = fitz.open(file_path)
-    text = ""
-    for page in doc:
-        text += page.get_text()
-    return text
+    import pymupdf4llm
+    # Extrait tout le PDF directement au format Markdown (garde les tableaux et la structure !)
+    md_text = pymupdf4llm.to_markdown(file_path)
+    return md_text
 
 def parse_docx(file_path: str) -> str:
     doc = Document(file_path)

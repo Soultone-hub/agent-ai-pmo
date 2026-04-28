@@ -1,4 +1,4 @@
-﻿alembic==1.18.4
+alembic==1.18.4
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.1
@@ -77,6 +77,7 @@ pydantic_core==2.41.5
 pydantic-settings==2.13.1
 Pygments==2.19.2
 PyMuPDF==1.27.2
+pymupdf4llm==0.0.10
 PyPika==0.51.1
 pytest==9.0.2
 python-dateutil==2.9.0.post0
