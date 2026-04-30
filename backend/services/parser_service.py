@@ -7,10 +7,19 @@ import email
 from email import policy
 
 def parse_pdf(file_path: str) -> str:
-    import pymupdf4llm
-    # Extrait tout le PDF directement au format Markdown (garde les tableaux et la structure !)
-    md_text = pymupdf4llm.to_markdown(file_path)
-    return md_text
+    try:
+        import pymupdf4llm
+        # Extrait tout le PDF directement au format Markdown (garde les tableaux et la structure !)
+        md_text = pymupdf4llm.to_markdown(file_path)
+        return md_text
+    except Exception as e:
+        # Fallback de sécurité (notamment pour Python 3.14 où networkx plante à l'importation)
+        import fitz
+        doc = fitz.open(file_path)
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        return text
 
 def parse_docx(file_path: str) -> str:
     doc = Document(file_path)

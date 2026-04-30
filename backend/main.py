@@ -9,6 +9,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
+from fastapi.middleware.gzip import GZipMiddleware
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],  # Frontend React (Vite)
@@ -16,6 +18,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Optimisation : Compression GZip pour réduire le poids des transferts (très utile pour l'envoi des documents RAG)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.include_router(auth.router)
 app.include_router(documents.router)
