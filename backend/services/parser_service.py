@@ -13,13 +13,34 @@ def parse_pdf(file_path: str) -> str:
         md_text = pymupdf4llm.to_markdown(file_path)
         return md_text
     except Exception as e:
-        # Fallback de sécurité (notamment pour Python 3.14 où networkx plante à l'importation)
+        # Fallback de sécurité (pour Python 3.14 où networkx/pymupdf4llm plante à l'importation)
         import fitz
         doc = fitz.open(file_path)
-        text = ""
+        text_parts = []
+        
         for page in doc:
-            text += page.get_text()
-        return text
+            # 1. Extraction manuelle et propre des tableaux (Native PyMuPDF)
+            tables = page.find_tables()
+            if tables:
+                for table in tables:
+                    table_data = table.extract()
+                    if not table_data or len(table_data) < 2: 
+                        continue
+                        
+                    md_table = "\n\n"
+                    for i, row in enumerate(table_data):
+                        # Nettoyage des cellules (retrait des retours à la ligne internes)
+                        clean_row = [str(cell).replace("\n", " ").strip() if cell else "" for cell in row]
+                        md_table += "| " + " | ".join(clean_row) + " |\n"
+                        # Ajout du séparateur Markdown après l'en-tête
+                        if i == 0:
+                            md_table += "|" + "|".join(["---" for _ in row]) + "|\n"
+                    text_parts.append(md_table + "\n")
+            
+            # 2. Extraction du reste du texte de la page
+            text_parts.append(page.get_text())
+            
+        return "\n".join(text_parts)
 
 def parse_docx(file_path: str) -> str:
     doc = Document(file_path)
