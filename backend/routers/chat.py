@@ -1,8 +1,10 @@
 import uuid
+from typing import Any, cast
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from groq import Groq
 from backend.database.db import get_db
 from backend.models.user import User
 from backend.models.chat_message import ChatMessage
@@ -11,6 +13,7 @@ from backend.services.auth_service import get_current_user
 from backend.services.rag_service import search_documents
 from backend.services.anonymization_service import deanonymize, merge_maps_from_docs
 from backend.config import settings
+from backend.limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["Chat IA"])
@@ -47,7 +50,7 @@ def list_sessions(
     # Regrouper par session_id
     sessions: dict[str, dict] = {}
     for msg in rows:
-        sid = msg.session_id
+        sid = str(msg.session_id)
         if sid not in sessions:
             sessions[sid] = {
                 "session_id": sid,
@@ -56,7 +59,7 @@ def list_sessions(
                 "message_count": 0,
             }
         if msg.role == "user" and sessions[sid]["first_message"] is None:
-            sessions[sid]["first_message"] = msg.content[:80]
+            sessions[sid]["first_message"] = str(msg.content)[:80]
         sessions[sid]["last_message_at"] = str(msg.created_at)
         sessions[sid]["message_count"] += 1
 
@@ -135,7 +138,9 @@ def get_history(
 # ── Envoi de message ──────────────────────────────────────────────────────────
 
 @router.post("/message")
+@limiter.limit("20/minute")  # Max 20 messages par IP/min (contrôle du coût LLM)
 def send_message(
+    http_request: Request,
     request: MessageRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -153,7 +158,7 @@ def send_message(
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
-    history = [{"role": m.role, "content": m.content} for m in history_rows[-10:]]
+    history: list[dict[str, str]] = [{"role": str(m.role), "content": str(m.content)} for m in history_rows[-10:]]
 
     # Contexte documentaire RAG
     context_chunks = search_documents(request.project_id, request.message)
@@ -172,15 +177,14 @@ CONTEXTE DOCUMENTAIRE DU PROJET :
         messages_groq.append(msg)
     messages_groq.append({"role": "user", "content": request.message})
 
-    from groq import Groq
     client = Groq(api_key=settings.GROQ_API_KEY)
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=messages_groq,
+        messages=cast(Any, messages_groq),
         temperature=0.4,
         max_tokens=2048,
     )
-    reponse_text = response.choices[0].message.content
+    reponse_text: str = response.choices[0].message.content or ""
 
     # Dé-anonymisation : si des documents du projet sont anonymisés,
     # remplacer les placeholders dans la réponse avant stockage et affichage

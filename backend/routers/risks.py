@@ -25,7 +25,7 @@ def extract_project_risks(
         raise HTTPException(status_code=404, detail="Document non trouve")
 
     # LLM reçoit le texte (potentiellement anonymisé si is_anonymized=True)
-    result = extract_risks(project_id, document_id, doc.content_text)
+    result = extract_risks(project_id, document_id, str(doc.content_text))
 
     # Dé-anonymisation avant stockage et retour au frontend
     anon_map = merge_maps_from_docs([doc])
@@ -63,12 +63,12 @@ def get_risks_history(
             {
                 "id": str(a.id),
                 "created_at": str(a.created_at),
-                "nb_risques": len(a.result_json.get("risks", [])),
+                "nb_risques": len((a.result_json or {}).get("risks", [])),
                 "nb_critiques": sum(
-                    1 for r in a.result_json.get("risks", [])
+                    1 for r in (a.result_json or {}).get("risks", [])
                     if r.get("niveau") == "critique"
                 ),
-                "resume": a.result_json.get("resume", "")[:120],
+                "resume": (a.result_json or {}).get("resume", "")[:120],
             }
             for a in analyses
         ]

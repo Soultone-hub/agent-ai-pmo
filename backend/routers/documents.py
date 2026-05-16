@@ -1,10 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from backend.database.db import get_db
 from backend.services.parser_service import parse_document
 from backend.services.rag_service import index_document
 from backend.models.document import Document
 from backend.models.user import User
+from backend.models.analysis import Analysis
 from backend.services.analysis_service import analyze_document, analyze_documents_multi
 from backend.services.classification_service import classify_document, get_project_checklist
 from backend.services.auth_service import get_current_user
@@ -13,6 +14,7 @@ from pydantic import BaseModel
 import uuid
 import os
 import tempfile
+from backend.limiter import limiter
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -20,7 +22,9 @@ MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024   # 20 Mo
 MAX_DOCS_PER_PROJECT = 50
 
 @router.post("/upload")
+@limiter.limit("30/hour")  # Max 30 uploads par IP/heure (protection anti-spam)
 async def upload_document(
+    request: Request,
     project_id: str,
     file: UploadFile = File(...),
     anonymize_doc: bool = Query(default=False, alias="anonymize", description="Anonymiser les données personnelles (RGPD) avant indexation"),
@@ -28,6 +32,8 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
 ):
     allowed = [".pdf", ".docx", ".xlsx", ".eml", ".pptx"]
+    if file.filename is None:
+        raise HTTPException(status_code=400, detail="Nom de fichier manquant.")
     ext = os.path.splitext(file.filename)[1].lower()
     if ext == ".ppt":
         raise HTTPException(
@@ -73,7 +79,7 @@ async def upload_document(
         nb_chunks = index_document(project_id, document_id, text_for_index)
 
         # 4. Classifier automatiquement la catégorie PMO
-        category = classify_document(file.filename, text_for_index)
+        category = classify_document(file.filename or "", text_for_index)
 
         # 5. Persister en base — content_text stocke le texte anonymisé
         doc = Document(
@@ -96,7 +102,7 @@ async def upload_document(
             "is_anonymized": anonymize_doc,
         }
         if anonymize_doc and anon_map:
-            response["anonymization_summary"] = get_anonymization_summary(anon_map)
+            response["anonymization_summary"] = get_anonymization_summary(anon_map)  # type: ignore[assignment]
 
         return response
     finally:
@@ -124,7 +130,7 @@ async def analyze_document_endpoint(
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouvé")
 
-    result = analyze_document(str(doc.project_id), str(doc.id), doc.content_text)
+    result = analyze_document(str(doc.project_id), str(doc.id), str(doc.content_text))
 
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -133,6 +139,17 @@ async def analyze_document_endpoint(
     anon_map = merge_maps_from_docs([doc])
     if anon_map:
         result = deanonymize_result(result, anon_map)
+
+    # Sauvegarde de l'analyse dans l'historique
+    analysis_record = Analysis(
+        project_id=doc.project_id,
+        document_id=doc.id,
+        analysis_type="document",
+        result_json=result,
+        model_used="groq/llama-3.3-70b",
+    )
+    db.add(analysis_record)
+    db.commit()
 
     return {"document_id": document_id, "analyse": result}
 
@@ -197,10 +214,20 @@ def analyze_multi_endpoint(
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
 
-    
     # De-anonymisation : fusion maps docs analyses
     anon_map = merge_maps_from_docs(docs)
     if anon_map:
         result = deanonymize_result(result, anon_map)
+
+    # Sauvegarde de l'analyse dans l'historique
+    analysis_record = Analysis(
+        project_id=request.project_id,
+        document_id=None,
+        analysis_type="document",
+        result_json=result,
+        model_used="groq/llama-3.3-70b",
+    )
+    db.add(analysis_record)
+    db.commit()
 
     return {"analyse": result}

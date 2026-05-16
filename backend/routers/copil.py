@@ -26,7 +26,7 @@ def generate_copil_report(
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouvé")
 
-    result = generate_copil(project_id, document_id, doc.content_text)
+    result = generate_copil(project_id, document_id, str(doc.content_text))
 
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -84,7 +84,7 @@ def get_copil_history(
             {
                 "id": str(a.id),
                 "created_at": str(a.created_at),
-                "resume_executif": a.result_json.get("resume_executif", "")
+                "resume_executif": (a.result_json or {}).get("resume_executif", "")
             }
             for a in analyses
         ]

@@ -1,7 +1,9 @@
 import fitz  # PyMuPDF
+from typing import cast as type_cast
 from docx import Document
 from openpyxl import load_workbook
 from pptx import Presentation
+from pptx.shapes.base import BaseShape
 import os
 import email
 from email import policy
@@ -11,12 +13,12 @@ def parse_pdf(file_path: str) -> str:
         import pymupdf4llm
         # Extrait tout le PDF directement au format Markdown (garde les tableaux et la structure !)
         md_text = pymupdf4llm.to_markdown(file_path)
-        return md_text
+        return str(md_text)
     except Exception as e:
         # Fallback de sécurité (pour Python 3.14 où networkx/pymupdf4llm plante à l'importation)
         import fitz
         doc = fitz.open(file_path)
-        text_parts = []
+        text_parts: list[str] = []
         
         for page in doc:
             # 1. Extraction manuelle et propre des tableaux (Native PyMuPDF)
@@ -35,10 +37,10 @@ def parse_pdf(file_path: str) -> str:
                         # Ajout du séparateur Markdown après l'en-tête
                         if i == 0:
                             md_table += "|" + "|".join(["---" for _ in row]) + "|\n"
-                    text_parts.append(md_table + "\n")
+                    text_parts.append(str(md_table + "\n"))
             
             # 2. Extraction du reste du texte de la page
-            text_parts.append(page.get_text())
+            text_parts.append(str(page.get_text()))
             
         return "\n".join(text_parts)
 
@@ -70,13 +72,17 @@ def parse_pptx(file_path: str) -> str:
         for shape in slide.shapes:
             # Titre et contenus texte
             if shape.has_text_frame:
-                for para in shape.text_frame.paragraphs:
+                from pptx.shapes.autoshape import Shape as AutoShape
+                tf_shape = type_cast(AutoShape, shape)
+                for para in tf_shape.text_frame.paragraphs:
                     line = para.text.strip()
                     if line:
                         text += line + "\n"
             # Tables
             if shape.has_table:
-                for row in shape.table.rows:
+                from pptx.shapes.graphfrm import GraphicFrame
+                tbl_shape = type_cast(GraphicFrame, shape)
+                for row in tbl_shape.table.rows:
                     row_text = " | ".join(
                         cell.text.strip() for cell in row.cells if cell.text.strip()
                     )
@@ -84,9 +90,11 @@ def parse_pptx(file_path: str) -> str:
                         text += row_text + "\n"
         # Notes du présentateur
         if slide.has_notes_slide:
-            notes = slide.notes_slide.notes_text_frame.text.strip()
-            if notes:
-                text += f"[Notes] {notes}\n"
+            notes_slide = slide.notes_slide
+            if notes_slide is not None and notes_slide.notes_text_frame is not None:
+                notes = notes_slide.notes_text_frame.text.strip()
+                if notes:
+                    text += f"[Notes] {notes}\n"
     return text
 
 

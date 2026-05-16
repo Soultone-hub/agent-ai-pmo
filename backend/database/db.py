@@ -6,6 +6,8 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set in the environment.")
 
 # Optimisation : Pool de connexions (pool_size), débordement autorisé (max_overflow) 
 # et ping de pré-vérification pour éviter les connexions mortes (pool_pre_ping)

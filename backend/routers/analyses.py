@@ -1,3 +1,4 @@
+from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from backend.database.db import get_db
@@ -21,25 +22,25 @@ def list_project_analyses(
         Analysis.analysis_type == type,
     ).order_by(Analysis.created_at.desc()).all()
 
-    def _summarize(a):
+    def _summarize(a) -> dict[str, Any]:
         r = a.result_json or {}
-        entry = {
+        entry: dict[str, Any] = {
             "id": str(a.id),
             "created_at": str(a.created_at),
         }
         if type == "document":
-            entry["nb_objectifs"]      = len(r.get("objectifs", []))
-            entry["nb_contraintes"]    = len(r.get("contraintes", []))
-            entry["nb_points_cles"]    = len(r.get("points_cles", []))
+            entry["nb_objectifs"]      = len(r.get("objectifs") or [])
+            entry["nb_contraintes"]    = len(r.get("contraintes") or [])
+            entry["nb_points_cles"]    = len(r.get("points_cles") or [])
             entry["resume"]            = (r.get("resume") or "")[:120]
         elif type == "risks":
-            risks = r.get("risks", [])
+            risks = r.get("risks") or []
             entry["nb_risques"]        = len(risks)
-            entry["nb_critiques"]      = sum(1 for x in risks if x.get("niveau") == "critique")
+            entry["nb_critiques"]      = sum(1 for x in risks if (x or {}).get("niveau") == "critique")
             entry["resume"]            = (r.get("resume") or "")[:120]
         elif type == "kpi":
-            entry["nb_kpis"]           = len(r.get("kpis", []))
-            entry["score_global"]      = r.get("score_global", {}).get("valeur", 0)
+            entry["nb_kpis"]           = len(r.get("kpis") or [])
+            entry["score_global"]      = (r.get("score_global") or {}).get("valeur", 0)
         elif type == "copil":
             entry["resume_executif"]   = (r.get("resume_executif") or "")[:120]
         return entry

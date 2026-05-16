@@ -13,6 +13,9 @@ from backend.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["Authentification"])
 
+# Import du limiter global (défini dans main.py)
+from backend.limiter import limiter
+
 COOKIE_NAME = "refresh_token"
 COOKIE_MAX_AGE = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600  # secondes
 
@@ -55,7 +58,8 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
 
 # ── Register ─────────────────────────────────────────────────────────────────
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")  # Max 10 créations de compte par IP/min
+def register(request: Request, req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == req.email).first()
     if existing:
         raise HTTPException(status_code=409, detail="Email déjà utilisé")
@@ -81,9 +85,10 @@ def register(req: RegisterRequest, response: Response, db: Session = Depends(get
 
 # ── Login ─────────────────────────────────────────────────────────────────────
 @router.post("/login")
-def login(req: LoginRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")  # Max 10 tentatives de connexion par IP/min
+def login(request: Request, req: LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == req.email).first()
-    if not user or not verify_password(req.password, user.password_hash):
+    if not user or not verify_password(req.password, str(user.password_hash)):
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
 
     access_token = create_access_token(str(user.id))

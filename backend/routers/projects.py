@@ -74,7 +74,7 @@ def rename_project(
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Projet non trouvé")
-    project.name = request.name
+    setattr(project, "name", request.name)
     db.commit()
     return {"id": str(project.id), "name": project.name}
 
@@ -91,6 +91,6 @@ def delete_project(
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Projet non trouvé")
-    project.status = "archived"
+    setattr(project, "status", "archived")
     db.commit()
     return {"message": f"Projet '{project.name}' archivé."}

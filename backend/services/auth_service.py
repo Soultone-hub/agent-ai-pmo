@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, cast
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -55,8 +55,8 @@ def decode_token(token: str, expected_type: str = "access") -> str:
     )
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-        token_type: str = payload.get("type")
-        sub: str = payload.get("sub")
+        token_type: Optional[str] = cast(Optional[str], payload.get("type"))
+        sub: Optional[str] = cast(Optional[str], payload.get("sub"))
         if sub is None or token_type != expected_type:
             raise credentials_exception
         return sub

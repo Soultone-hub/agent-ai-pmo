@@ -26,7 +26,7 @@ def extract_project_kpis(
     if not doc:
         raise HTTPException(status_code=404, detail="Document non trouvé")
 
-    result = extract_kpis(project_id, document_id, doc.content_text)
+    result = extract_kpis(project_id, document_id, str(doc.content_text))
 
     if not result.get("kpis"):
         raise HTTPException(status_code=422, detail="Aucun KPI identifiable dans ce document")
@@ -107,8 +107,8 @@ def get_kpi_history(
             {
                 "id": str(a.id),
                 "created_at": str(a.created_at),
-                "score_global": a.result_json.get("score_global", {}).get("valeur", 0),
-                "nb_kpis": len(a.result_json.get("kpis", []))
+                "score_global": (a.result_json or {}).get("score_global", {}).get("valeur", 0),
+                "nb_kpis": len((a.result_json or {}).get("kpis", []))
             }
             for a in analyses
         ]

@@ -1,12 +1,26 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from backend.limiter import limiter
 from backend.models import user, project, document, analysis, chat_message
 from backend.routers import documents, risks, copil, kpi, chat, projects, auth, analyses
+
+# ── Rate Limiter (protection anti-abus) ─────────────────────────────────────
+# Défini dans backend/limiter.py pour éviter les imports circulaires.
 
 app = FastAPI(
     title="Agent IA - Pilotage de Projets Strategiques",
     description="API pour l'assistance intelligente au pilotage de projets",
     version="1.0.0"
+)
+
+# Monter le limiter sur l'état de l'app + gestionnaire d'erreur 429
+app.state.limiter = limiter
+app.add_exception_handler(
+    RateLimitExceeded,
+    _rate_limit_exceeded_handler  # type: ignore[arg-type]
 )
 
 from fastapi.middleware.gzip import GZipMiddleware
