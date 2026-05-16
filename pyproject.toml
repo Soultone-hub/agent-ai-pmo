@@ -1,0 +1,29 @@
+[tool.pyrefly]
+# Dossiers à exclure de l'analyse statique
+exclude = [
+    "venv/**",
+    ".venv/**",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    ".pytest_cache/**",
+    "chroma_db/**",
+    "models_cache/**",
+    "alembic/versions/**",
+    "pipeline/steps/tests.py",   # tests unitaires — imports sys.path dynamiques
+    "pipeline/benchmark_pipeline.py",  # script standalone — imports dynamiques
+]
+
+# Répertoire racine du projet Python
+project_includes = [
+    "backend",
+    "pipeline",
+]
+
+# Version Python cible
+python_version = "3.11"
+
+# Ne pas vérifier les stubs des bibliothèques tierces
+check_untyped_defs = false
+
+# Ignorer les erreurs d'imports manquants pour les libs non typées
+ignore_missing_imports = true

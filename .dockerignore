@@ -1,0 +1,17 @@
+venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+tests/
+chroma_db/
+models_cache/
+*.log
+debug_jean.txt
+test_jean_dupont.py
+test_pipeline_import.py
+pipeline_import_error.log
+.git/
+.gitignore
+README.md
