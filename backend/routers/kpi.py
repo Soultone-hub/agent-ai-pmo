@@ -150,6 +150,19 @@ def extract_kpis_multi_endpoint(
         model_used="llama-3.3-70b-versatile"
     )
     db.add(analysis)
+
+    # Associer l'analyse à chaque document individuel
+    for doc in docs:
+        sub_record = Analysis(
+            id=str(uuid.uuid4()),
+            project_id=request.project_id,
+            document_id=doc.id,
+            analysis_type="kpi",
+            result_json={"info": "Analysé dans le cadre d'une extraction de KPI multi-documents", "parent_analysis_id": str(analysis.id)},
+            model_used="llama-3.3-70b-versatile"
+        )
+        db.add(sub_record)
+
     db.commit()
 
     return result

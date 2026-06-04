@@ -61,6 +61,45 @@ def list_projects(
     }
 
 
+@router.get("/archived")
+def list_archived_projects(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    projects = db.query(Project).filter(
+        Project.owner_id == current_user.id,
+        Project.status == "archived"
+    ).order_by(Project.created_at.desc()).all()
+    return {
+        "projects": [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "status": p.status,
+                "created_at": str(p.created_at)
+            }
+            for p in projects
+        ]
+    }
+
+
+@router.patch("/{project_id}/restore")
+def restore_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == current_user.id,
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Projet non trouvé")
+    setattr(project, "status", "active")
+    db.commit()
+    return {"id": str(project.id), "name": project.name, "status": project.status, "message": f"Projet '{project.name}' restauré."}
+
+
 @router.patch("/{project_id}")
 def rename_project(
     project_id: str,

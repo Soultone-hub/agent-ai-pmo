@@ -31,6 +31,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],  # permet au frontend de lire le nom de fichier d'export
 )
 
 # Optimisation : Compression GZip pour réduire le poids des transferts (très utile pour l'envoi des documents RAG)

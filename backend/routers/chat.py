@@ -140,20 +140,20 @@ def get_history(
 @router.post("/message")
 @limiter.limit("20/minute")  # Max 20 messages par IP/min (contrôle du coût LLM)
 def send_message(
-    http_request: Request,
-    request: MessageRequest,
+    request: Request,
+    payload: MessageRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not request.session_id:
+    if not payload.session_id:
         raise HTTPException(status_code=400, detail="session_id requis. Créez d'abord une session via POST /api/chat/sessions/{project_id}")
 
     # Charger les 10 derniers messages de cette session pour le contexte
     history_rows = (
         db.query(ChatMessage)
         .filter(
-            ChatMessage.project_id == request.project_id,
-            ChatMessage.session_id == request.session_id,
+            ChatMessage.project_id == payload.project_id,
+            ChatMessage.session_id == payload.session_id,
         )
         .order_by(ChatMessage.created_at.asc())
         .all()
@@ -161,7 +161,7 @@ def send_message(
     history: list[dict[str, str]] = [{"role": str(m.role), "content": str(m.content)} for m in history_rows[-10:]]
 
     # Contexte documentaire RAG
-    context_chunks = search_documents(request.project_id, request.message)
+    context_chunks = search_documents(payload.project_id, payload.message)
     context_text = "\n\n".join(context_chunks) if context_chunks else "Aucun contexte disponible"
 
     system_prompt = f"""Tu es un assistant expert en pilotage de projets stratégiques.
@@ -175,7 +175,7 @@ CONTEXTE DOCUMENTAIRE DU PROJET :
     messages_groq = [{"role": "system", "content": system_prompt}]
     for msg in history:
         messages_groq.append(msg)
-    messages_groq.append({"role": "user", "content": request.message})
+    messages_groq.append({"role": "user", "content": payload.message})
 
     client = Groq(api_key=settings.GROQ_API_KEY)
     response = client.chat.completions.create(
@@ -189,7 +189,7 @@ CONTEXTE DOCUMENTAIRE DU PROJET :
     # Dé-anonymisation : si des documents du projet sont anonymisés,
     # remplacer les placeholders dans la réponse avant stockage et affichage
     project_docs = db.query(Document).filter(
-        Document.project_id == request.project_id,
+        Document.project_id == payload.project_id,
         Document.is_anonymized == True,
     ).all()
     anon_map = merge_maps_from_docs(project_docs)
@@ -198,14 +198,14 @@ CONTEXTE DOCUMENTAIRE DU PROJET :
 
     # Persister les 2 messages avec session_id
     db.add(ChatMessage(
-        project_id=request.project_id,
-        session_id=request.session_id,
+        project_id=payload.project_id,
+        session_id=payload.session_id,
         role="user",
-        content=request.message,
+        content=payload.message,
     ))
     db.add(ChatMessage(
-        project_id=request.project_id,
-        session_id=request.session_id,
+        project_id=payload.project_id,
+        session_id=payload.session_id,
         role="assistant",
         content=reponse_text,
     ))
@@ -213,9 +213,9 @@ CONTEXTE DOCUMENTAIRE DU PROJET :
 
     return {
         "message_id": str(uuid.uuid4()),
-        "project_id": request.project_id,
-        "session_id": request.session_id,
-        "question": request.message,
+        "project_id": payload.project_id,
+        "session_id": payload.session_id,
+        "question": payload.message,
         "reponse": reponse_text,
         "sources_utilisees": len(context_chunks),
     }

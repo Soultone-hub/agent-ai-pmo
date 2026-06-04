@@ -11,6 +11,33 @@ from sqlalchemy.pool import StaticPool
 from backend.database.db import Base, get_db
 from backend.main import app
 
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import JSONB
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(element, compiler, **kw):
+    return "JSON"
+
+# Monkeypatch UUID bind processor for SQLite to avoid "AttributeError: 'str' object has no attribute 'hex'"
+from sqlalchemy.types import UUID
+import uuid
+original_bind_processor = UUID.bind_processor
+
+def patched_bind_processor(self, dialect):
+    proc = original_bind_processor(self, dialect)
+    if proc is None:
+        return proc
+    def process(value):
+        if isinstance(value, str):
+            try:
+                value = uuid.UUID(value)
+            except ValueError:
+                pass
+        return proc(value)
+    return process
+
+UUID.bind_processor = patched_bind_processor
+
 # ─── Base de données de test (SQLite en mémoire) ─────────────────────────────
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
@@ -73,8 +100,7 @@ def auth_headers(client):
         "first_name": "Test",
         "last_name": "User",
         "email": "test@pmo.bj",
-        "password": "TestPassword123!",
-        "role": "pmo"
+        "password": "TestPassword123!"
     })
 
     # Connexion

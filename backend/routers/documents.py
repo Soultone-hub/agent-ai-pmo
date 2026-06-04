@@ -48,7 +48,7 @@ async def upload_document(
     if len(content) > MAX_FILE_SIZE_BYTES:
         size_mb = len(content) / (1024 * 1024)
         raise HTTPException(
-            status_code=400,
+            status_code=413,
             detail=f"Fichier trop volumineux ({size_mb:.1f} Mo). Maximum autorisé : 20 Mo."
         )
 
@@ -169,6 +169,7 @@ def list_documents(
                 "category": d.category,
                 "is_anonymized": d.is_anonymized,
                 "uploaded_at": str(d.uploaded_at),
+                "status": "analyzed" if len(d.analyses) > 0 else "pending",
             }
             for d in docs
         ]
@@ -228,6 +229,18 @@ def analyze_multi_endpoint(
         model_used="groq/llama-3.3-70b",
     )
     db.add(analysis_record)
+
+    # Associer l'analyse à chaque document individuel
+    for doc in docs:
+        sub_record = Analysis(
+            project_id=request.project_id,
+            document_id=doc.id,
+            analysis_type="document",
+            result_json={"info": "Analysé dans le cadre d'une analyse multi-documents", "parent_analysis_id": str(analysis_record.id)},
+            model_used="groq/llama-3.3-70b",
+        )
+        db.add(sub_record)
+
     db.commit()
 
     return {"analyse": result}

@@ -70,7 +70,12 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     user_id = decode_token(credentials.credentials, expected_type="access")
-    user = db.query(User).filter(User.id == user_id).first()
+    import uuid
+    try:
+        user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalide")
+    user = db.query(User).filter(User.id == user_uuid).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Utilisateur introuvable")
     return user

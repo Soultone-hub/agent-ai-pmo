@@ -26,8 +26,7 @@ class TestRegister:
             "first_name": "Alice",
             "last_name": "Dupont",
             "email": "alice@pmo.bj",
-            "password": "SecurePass123!",
-            "role": "pmo"
+            "password": "SecurePass123!"
         })
         assert r.status_code == 201
         body = r.json()
@@ -41,8 +40,7 @@ class TestRegister:
             "first_name": "Bob",
             "last_name": "Martin",
             "email": "bob.dupont@pmo.bj",
-            "password": "AnotherPass456!",
-            "role": "pmo"
+            "password": "AnotherPass456!"
         }
         client.post("/api/auth/register", json=payload)  # 1ère inscription
         r = client.post("/api/auth/register", json=payload)  # 2ème = doublon
@@ -54,8 +52,7 @@ class TestRegister:
             "first_name": "Charlie",
             "last_name": "Test",
             "email": "pas-un-email",
-            "password": "Pass123!",
-            "role": "pmo"
+            "password": "Pass123!"
         })
         assert r.status_code == 422
 
@@ -69,8 +66,7 @@ class TestLogin:
             "first_name": "David",
             "last_name": "Koffi",
             "email": "david.koffi@pmo.bj",
-            "password": "LoginPass789!",
-            "role": "pmo"
+            "password": "LoginPass789!"
         })
         r = client.post("/api/auth/login", json={
             "email": "david.koffi@pmo.bj",
@@ -86,8 +82,7 @@ class TestLogin:
             "first_name": "Eve",
             "last_name": "Test",
             "email": "eve@pmo.bj",
-            "password": "CorrectPass!",
-            "role": "pmo"
+            "password": "CorrectPass!"
         })
         r = client.post("/api/auth/login", json={
             "email": "eve@pmo.bj",

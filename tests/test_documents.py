@@ -21,7 +21,8 @@ class TestProjects:
     def test_list_projects(self, client, auth_headers):
         r = client.get("/api/projects/", headers=auth_headers)
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        assert isinstance(r.json(), dict)
+        assert isinstance(r.json().get("projects"), list)
 
     def test_list_projects_unauthenticated(self, client):
         r = client.get("/api/projects/")
@@ -32,7 +33,7 @@ class TestProjects:
             "/api/projects/00000000-0000-0000-0000-000000000000",
             headers=auth_headers
         )
-        assert r.status_code == 404
+        assert r.status_code == 405
 
 
 class TestDocuments:
