@@ -1,6 +1,10 @@
 import fitz  # PyMuPDF
 from typing import cast as type_cast
 from docx import Document
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+from docx.oxml.table import CT_Tbl
+from docx.oxml.text.paragraph import CT_P
 from openpyxl import load_workbook
 from pptx import Presentation
 from pptx.shapes.base import BaseShape
@@ -8,48 +12,158 @@ import os
 import email
 from email import policy
 
+
+# ── Helper commun : rendu d'un tableau en Markdown ────────────────────────────
+def _rows_to_markdown(rows: list) -> str:
+    """Convertit une liste de lignes (chacune = liste de cellules) en tableau
+    Markdown. Ignore les lignes entièrement vides et harmonise le nombre de
+    colonnes pour produire un tableau GFM valide."""
+    cleaned: list[list[str]] = []
+    for row in rows or []:
+        cells = [(str(c) if c is not None else "").replace("\n", " ").strip() for c in row]
+        if any(cells):
+            cleaned.append(cells)
+    if not cleaned:
+        return ""
+    ncols = max(len(r) for r in cleaned)
+    cleaned = [r + [""] * (ncols - len(r)) for r in cleaned]
+    lines = [
+        "| " + " | ".join(cleaned[0]) + " |",
+        "| " + " | ".join(["---"] * ncols) + " |",
+    ]
+    for r in cleaned[1:]:
+        lines.append("| " + " | ".join(r) + " |")
+    return "\n".join(lines)
+
+
+# ── PDF ───────────────────────────────────────────────────────────────────────
+def _is_real_table(rows: list) -> bool:
+    """Distingue un vrai tableau de données d'un simple bloc de mise en page.
+    Critères : ≥ 2 lignes non vides, ≥ 2 colonnes, et au moins la moitié des
+    cellules remplies (les flyers/mises en page produisent des « tableaux »
+    quasi vides qu'il ne faut pas rendre en Markdown)."""
+    cleaned = [
+        [(str(c) if c is not None else "").strip() for c in r]
+        for r in (rows or [])
+    ]
+    cleaned = [r for r in cleaned if any(r)]
+    if len(cleaned) < 2:
+        return False
+    ncols = max(len(r) for r in cleaned)
+    if ncols < 2:
+        return False
+    total = sum(len(r) for r in cleaned)
+    filled = sum(1 for r in cleaned for c in r if c)
+    return total > 0 and (filled / total) >= 0.6
+
+
+def _parse_pdf_fallback(file_path: str) -> str:
+    """Extraction PDF native PyMuPDF : vrais tableaux convertis en Markdown +
+    texte situé HORS de ces tableaux, le tout ordonné par position verticale et
+    SANS duplication. Utilisé quand pymupdf4llm est indisponible (ex. Py 3.14)."""
+    # Silence les avertissements MuPDF non bloquants (ex. « No common ancestor… »)
+    try:
+        fitz.TOOLS.mupdf_display_errors(False)
+    except Exception:
+        pass
+
+    doc = fitz.open(file_path)
+    parts: list[str] = []
+
+    for page in doc:
+        # 1. Détecter les tableaux, ne garder que les VRAIS tableaux de données
+        try:
+            found = page.find_tables()
+            candidates = list(found.tables) if found else []
+        except Exception:
+            candidates = []
+
+        real_tables: list[tuple[object, object, str]] = []  # (table, rect, markdown)
+        for table in candidates:
+            try:
+                data = table.extract()
+            except Exception:
+                continue
+            if _is_real_table(data):
+                md = _rows_to_markdown(data)
+                if md:
+                    real_tables.append((table, fitz.Rect(table.bbox), md))
+        table_rects = [rect for (_, rect, _) in real_tables]
+
+        items: list[tuple[float, str]] = []  # (position_y, contenu)
+
+        # 2. Blocs de texte situés HORS des vrais tableaux (évite la duplication)
+        for block in page.get_text("blocks"):
+            x0, y0, x1, y1, btext = block[0], block[1], block[2], block[3], block[4]
+            btype = block[6] if len(block) > 6 else 0
+            if btype != 0 or not str(btext).strip():
+                continue
+            bbox = fitz.Rect(x0, y0, x1, y1)
+            area = bbox.get_area()
+            inside_table = False
+            for tr in table_rects:
+                inter = bbox & tr
+                if not inter.is_empty and area > 0 and (inter.get_area() / area) > 0.5:
+                    inside_table = True
+                    break
+            if not inside_table:
+                items.append((y0, str(btext).strip()))
+
+        # 3. Tableaux rendus en Markdown
+        for _, rect, md in real_tables:
+            items.append((rect.y0, "\n" + md + "\n"))
+
+        # 4. Restituer dans l'ordre vertical de la page
+        items.sort(key=lambda it: it[0])
+        parts.extend(content for _, content in items)
+
+    return "\n\n".join(parts)
+
+
 def parse_pdf(file_path: str) -> str:
     try:
         import pymupdf4llm
-        # Extrait tout le PDF directement au format Markdown (garde les tableaux et la structure !)
-        md_text = pymupdf4llm.to_markdown(file_path)
-        return str(md_text)
-    except Exception as e:
-        # Fallback de sécurité (pour Python 3.14 où networkx/pymupdf4llm plante à l'importation)
-        import fitz
-        doc = fitz.open(file_path)
-        text_parts: list[str] = []
-        
-        for page in doc:
-            # 1. Extraction manuelle et propre des tableaux (Native PyMuPDF)
-            tables = page.find_tables()
-            if tables:
-                for table in tables:
-                    table_data = table.extract()
-                    if not table_data or len(table_data) < 2: 
-                        continue
-                        
-                    md_table = "\n\n"
-                    for i, row in enumerate(table_data):
-                        # Nettoyage des cellules (retrait des retours à la ligne internes)
-                        clean_row = [str(cell).replace("\n", " ").strip() if cell else "" for cell in row]
-                        md_table += "| " + " | ".join(clean_row) + " |\n"
-                        # Ajout du séparateur Markdown après l'en-tête
-                        if i == 0:
-                            md_table += "|" + "|".join(["---" for _ in row]) + "|\n"
-                    text_parts.append(str(md_table + "\n"))
-            
-            # 2. Extraction du reste du texte de la page
-            text_parts.append(str(page.get_text()))
-            
-        return "\n".join(text_parts)
+        # Markdown direct (préserve tableaux + structure) — actif sous Python 3.11
+        md_text = str(pymupdf4llm.to_markdown(file_path)).strip()
+        if md_text:
+            return md_text
+    except Exception:
+        pass
+    # Fallback natif PyMuPDF (Python 3.14, ou échec de pymupdf4llm)
+    return _parse_pdf_fallback(file_path)
+
+
+# ── DOCX ──────────────────────────────────────────────────────────────────────
+def _iter_docx_blocks(parent):
+    """Itère les paragraphes ET les tableaux d'un document Word dans leur ordre
+    d'apparition (python-docx expose paragraphs et tables séparément, ce qui
+    perd l'ordre — on parcourt donc directement le corps XML)."""
+    body = parent.element.body
+    for child in body.iterchildren():
+        if isinstance(child, CT_P):
+            yield Paragraph(child, parent)
+        elif isinstance(child, CT_Tbl):
+            yield Table(child, parent)
+
+
+def _docx_table_to_markdown(table) -> str:
+    rows = [[cell.text for cell in row.cells] for row in table.rows]
+    return _rows_to_markdown(rows)
+
 
 def parse_docx(file_path: str) -> str:
     doc = Document(file_path)
-    text = ""
-    for para in doc.paragraphs:
-        text += para.text + "\n"
-    return text
+    parts: list[str] = []
+    for block in _iter_docx_blocks(doc):
+        if isinstance(block, Paragraph):
+            txt = block.text.strip()
+            if txt:
+                parts.append(txt)
+        else:  # Table
+            md = _docx_table_to_markdown(block)
+            if md:
+                parts.append("\n" + md + "\n")
+    return "\n".join(parts)
 
 def parse_xlsx(file_path: str) -> str:
     wb = load_workbook(file_path)
