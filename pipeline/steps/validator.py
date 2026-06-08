@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 LEAK_PATTERNS: list[tuple[str, str]] = [
     ("EMAIL_LEAK",   r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"),
-    ("IBAN_LEAK",    r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b"),
+    ("IBAN_LEAK",    r"\b[A-Z]{2}\d{2}(?:[  ]?[A-Z0-9]){10,30}\b"),
     ("NIR_LEAK",     r"\b[12]\s?\d{2}\s?\d{2}\s?\d{2}[\s.\-]?\d{3}[\s.\-]?\d{3}(?:[\s.\-]?\d{2})?\b"),
     ("CC_LEAK",      r"\b(?:\d{4}[\s\-]?){3}\d{4}\b"),
     # Téléphones : France + Bénin + sous-région Afrique de l'Ouest

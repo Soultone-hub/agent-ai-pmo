@@ -60,6 +60,63 @@ PMO_WHITELIST: set[str] = {
 }
 
 # ---------------------------------------------------------------------------
+# Libellés structurels (en-têtes de champ/colonne) — NE sont JAMAIS des PII.
+# spaCy a tendance à les classer en PER/ORG/LOC : on les filtre du NER.
+# (comparaison insensible à la casse, après strip des ':' et espaces)
+# ---------------------------------------------------------------------------
+
+STRUCTURAL_LABELS: frozenset[str] = frozenset({
+    "champ", "valeur", "nom", "prénom", "prénoms",
+    "nom et prénoms", "nom / prénoms", "nom/prénoms",
+    "date", "date de naissance", "date/heure", "lieu de naissance",
+    "nationalité", "adresse", "adresse domicile", "adresse ip",
+    "téléphone", "téléphone principal", "téléphone secondaire",
+    "email", "email professionnel", "email personnel", "adresse email", "courriel",
+    "poste", "fonction", "grade", "service", "salaire", "salaire mensuel net",
+    "compte", "compte bancaire", "numéro", "numéro cni", "numéro cnss",
+    "matricule", "matricule igss", "cni", "cnss", "igss", "ifu", "rccm",
+    "motif", "motif consultation", "groupe sanguin",
+    "antécédent", "antécédents", "allergie", "allergies",
+    "statut", "statut vaccination", "contact", "contact d'urgence",
+    "utilisateur", "observations", "observation", "commentaire", "objet",
+})
+
+# ---------------------------------------------------------------------------
+# Lieux béninois courants — pour reclasser en LIEU les toponymes que spaCy
+# étiquette à tort en PERSONNE/ORGANISATION (ex : "Cadjèhoun", quartier de Cotonou).
+# ---------------------------------------------------------------------------
+
+BENIN_LOCATIONS: frozenset[str] = frozenset({
+    # Villes / communes
+    "cotonou", "porto-novo", "porto novo", "parakou", "abomey",
+    "abomey-calavi", "calavi", "bohicon", "natitingou", "djougou",
+    "lokossa", "ouidah", "kandi", "malanville", "savalou", "savè",
+    "dassa", "comè", "aplahoué", "pobè", "sakété", "allada", "grand-popo",
+    # Quartiers de Cotonou / zones
+    "akpakpa", "cadjèhoun", "cadjehoun", "fidjrossè", "fidjrosse",
+    "godomey", "gbégamey", "jéricho", "jericho", "zongo", "dantokpa",
+    "ganhi", "tokpa", "agla", "fifadji",
+    # Départements
+    "littoral", "atlantique", "ouémé", "oueme", "plateau", "mono",
+    "couffo", "zou", "collines", "borgou", "alibori", "atacora", "donga",
+})
+
+# Abréviations françaises courantes — un "abrév.mot" n'est PAS un identifiant.
+_USER_ABBREV_BLACKLIST: frozenset[str] = frozenset({
+    "cf", "ex", "art", "fig", "cad", "etc", "p", "pp", "vol",
+    "no", "av", "bd", "ch", "al", "op", "loc", "cf",
+})
+
+# Extensions de fichiers et TLD — un "mot.pdf" ou "site.com" n'est PAS un identifiant.
+_USER_EXT_TLD_BLACKLIST: frozenset[str] = frozenset({
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "eml", "txt", "csv",
+    "png", "jpg", "jpeg", "gif", "svg", "bmp", "zip", "rar", "exe",
+    "html", "htm", "php", "json", "xml", "md", "log",
+    "com", "org", "net", "fr", "bj", "ci", "sn", "tg", "bf", "cm",
+    "gouv", "edu", "int", "info", "io",
+})
+
+# ---------------------------------------------------------------------------
 # Catalogue de patterns regex — v2
 # ---------------------------------------------------------------------------
 
@@ -75,9 +132,26 @@ REGEX_PATTERNS: list[tuple[str, str, int]] = [
      r"https?://[^\s<>\"']+|www\.[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}[^\s<>\"']*",
      re.IGNORECASE),
 
-    # ── IBAN (tous pays) ──────────────────────────────────────────────────
+    # ── IBAN (tous pays) — tolère les espaces de groupage ─────────────────
+    # Ex : "BJ66 BJ060 10001 23456789012 54" ou "FR76 3000 4000 03..."
+    # On capture l'IBAN entier en une seule entité (espaces internes inclus)
+    # pour éviter qu'il soit fragmenté en plusieurs faux positifs.
     ("IBAN",
-     r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b",
+     r"\b[A-Z]{2}\d{2}(?:[  ]?[A-Z0-9]){10,30}\b",
+     0),
+
+    # ── Nom d'utilisateur système (initiale.nom / prénom.nom) ─────────────
+    # Ex : "kf.gbedje", "b.alassane" — identifiants directs de personnes
+    # dans les journaux d'accès. Validé dans _validate_match (anti-fichiers/TLD).
+    ("USER",
+     r"\b[a-zA-Z]{1,3}\.[a-zA-Z][a-zA-Z\-]{2,}\b",
+     0),
+
+    # ── Matricule / identifiant administratif structuré ───────────────────
+    # Ex : "BEN/MSP/2024/04521", "BJ-1985-082234-K", "CNSS-BJ-0043219-2"
+    # Validé dans _validate_match (≥3 chiffres + ≥1 lettre).
+    ("MATRICULE",
+     r"\b[A-Z]{2,}[\-/](?:[A-Z0-9]+[\-/])*[A-Z0-9]+\b",
      0),
 
     # ── SIRET (14 chiffres) ───────────────────────────────────────────────
@@ -151,21 +225,12 @@ REGEX_PATTERNS: list[tuple[str, str, int]] = [
      r"\b(?:0[1-9]|[1-8]\d|9[0-5])\d{3}\b",
      0),
 
-    # ── Date (formats FR, ISO, textuels) ─────────────────────────────────
-    ("DATE",
-     r"""
-     (?:
-       \b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\b             # 12/03/1990
-       |
-       \b\d{4}[\/\-\.]\d{2}[\/\-\.]\d{2}\b                    # 1990-03-12
-       |
-       \b\d{1,2}\s+
-       (?:janvier|février|mars|avril|mai|juin|juillet|
-          août|septembre|octobre|novembre|décembre)
-       \s+\d{4}\b                                               # 12 mars 1990
-     )
-     """,
-     re.IGNORECASE | re.VERBOSE),
+    # ── Date ──────────────────────────────────────────────────────────────
+    # PAS de détection inconditionnelle des dates : dans un contexte PMO la
+    # plupart des dates ne sont PAS des données personnelles (jalons, échéances,
+    # COPIL, planning) et les masquer dégraderait les analyses du LLM.
+    # Seules les dates dans un contexte PERSONNEL sont masquées via une règle
+    # contextuelle (voir CONTEXTUAL_RULES : "né le", "date de naissance"…).
 
     # ── Noms propres africains hors spaCy (SUPPRIMÉ car trop de faux positifs) ──
     # Remplacé par le lexique african_names.py et les règles contextuelles.
@@ -185,10 +250,45 @@ class ContextualRule(TypedDict):
 
 
 # ---------------------------------------------------------------------------
+# Motif de date réutilisable (formats FR, ISO, textuels) — sans flag VERBOSE
+# car utilisé via re.search() dans les règles contextuelles.
+# ---------------------------------------------------------------------------
+
+_DATE_VALUE = (
+    r"(?i)(?:"
+    r"\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}"                         # 12/03/1990
+    r"|\d{4}[\/\-.]\d{2}[\/\-.]\d{2}"                              # 1990-03-12
+    r"|\d{1,2}\s+(?:janvier|février|mars|avril|mai|juin|juillet|"
+    r"août|septembre|octobre|novembre|décembre)\s+\d{2,4}"        # 12 mars 1990
+    r")"
+)
+
+
+# ---------------------------------------------------------------------------
 # Règles métier contextuelles — v2 (secteur PMO Bénin)
 # ---------------------------------------------------------------------------
 
 CONTEXTUAL_RULES: list[ContextualRule] = [
+
+    # ── Dates PERSONNELLES uniquement (naissance, décès, embauche…) ────────
+    # Les dates "projet" (jalons, échéances, COPIL) ne sont PAS masquées.
+    {
+        "label":    "DATE",
+        "keywords": [
+            "né le", "née le", "ne le", "nee le", "né(e) le",
+            "date de naissance", "naissance le", "naissance :", "naissance:",
+            "décédé le", "décédée le", "date de décès", "décès le", "deces le",
+            "embauché le", "embauchée le", "date d'embauche", "embauche le",
+            "recruté le", "recrutée le", "date de recrutement", "recrutement le",
+            "engagé le", "engagée le", "entré en fonction le",
+            "marié le", "mariée le", "date de mariage",
+            "diagnostiqué le", "diagnostiquée le", "hospitalisé le",
+            "hospitalisée le", "admis le", "admise le",
+        ],
+        "pattern":  _DATE_VALUE,
+        "window":   45,
+        "score":    0.95,
+    },
 
     # ── Personnes mentionnées après un titre de civilité ──────────────────
     {
@@ -363,8 +463,38 @@ class Detector:
         if self.config.enable_rules:
             entities.extend(self._detect_rules(text))
 
+        # Écrêtage : une entité ne doit pas franchir un saut de ligne. spaCy
+        # fusionne parfois une valeur et le libellé de la ligne suivante
+        # (ex : "Gbèdji Kokou Fernand\nDate de naissance"). On tronque à la 1re ligne.
+        entities = [c for e in entities if (c := self._clip_at_newline(e)) is not None]
+
+        # Filtre final : retirer les libellés structurels (en-têtes de champ)
+        # quelle que soit la source (NER, lexique ou règle).
+        entities = [e for e in entities if not self._is_structural(e)]
+
         logger.debug("Détection brute : %d entité(s).", len(entities))
         return entities
+
+    @staticmethod
+    def _clip_at_newline(entity: Entity) -> Entity | None:
+        """Tronque l'entité au premier saut de ligne. Retourne None si trop courte."""
+        nl = entity.text.find("\n")
+        if nl == -1:
+            return entity
+        clipped = entity.text[:nl].rstrip()
+        if len(clipped.strip()) <= 1:
+            return None
+        entity.text = clipped
+        entity.end = entity.start + len(clipped)
+        return entity
+
+    @staticmethod
+    def _is_structural(entity: Entity) -> bool:
+        """True si l'entité est un libellé structurel (jamais une donnée PII)."""
+        if entity.label not in ("PER", "LOC", "ORG"):
+            return False
+        norm = " ".join(entity.text.split()).lower().strip(" :")
+        return norm in STRUCTURAL_LABELS
 
     # -----------------------------------------------------------------------
     # B. Lexique de noms africains
@@ -471,21 +601,38 @@ class Detector:
             if ent.label_ not in self.config.ner_labels:
                 continue
 
+            # Forme normalisée du texte (sans casse, sans ':' ni espaces parasites)
+            norm = " ".join(ent.text.split()).lower().strip(" :")
+
+            # Libellés structurels (en-têtes de champ/colonne) → jamais des PII
+            if norm in STRUCTURAL_LABELS:
+                continue
+
+            label = ent.label_
+
+            # Toponymes béninois mal classés en PER/ORG → forcer LIEU
+            if norm in BENIN_LOCATIONS:
+                label = "LOC"
+
             # Score de base NER + boost contextuel
             context = self._extract_context(text, ent.start_char, ent.end_char, window=40)
             score = self._compute_ner_score(ent.text, context)
 
             # Filtre whitelist sur les LOC et ORG
-            if ent.label_ in ("LOC", "ORG") and ent.text in PMO_WHITELIST:
+            if label in ("LOC", "ORG") and ent.text in PMO_WHITELIST:
+                continue
+
+            # Filtre blacklist sur les PER (termes PMO courants : Budget, Phase…)
+            if label == "PER" and self._is_per_blacklisted(ent.text):
                 continue
 
             # Ignorer les personnes composées d'une seule lettre (ex: "M" dans "Mr.")
-            if ent.label_ == "PER" and len(ent.text.strip()) <= 1:
+            if label == "PER" and len(ent.text.strip()) <= 1:
                 continue
 
             entities.append(Entity(
                 text=ent.text,
-                label=ent.label_,
+                label=label,
                 start=ent.start_char,
                 end=ent.end_char,
                 score=score,
@@ -552,8 +699,17 @@ class Detector:
         for rule in self._rules:
             # Préparer le regex pour les mots-clés (avec frontière de mot)
             kws = sorted(rule["keywords"], key=len, reverse=True)
-            # On échappe le mot clé, mais on gère l'espace éventuel à la fin
-            escaped_kws = [re.escape(kw.strip()) + r"\s*" for kw in kws]
+            # On échappe le mot clé, mais on gère l'espace éventuel à la fin.
+            # IMPORTANT : si le mot-clé se termine par une lettre/chiffre (ex : "pr",
+            # "me", "dr"), on exige une frontière de mot APRÈS, sinon il matcherait
+            # à l'intérieur de mots ordinaires ("pr"→"principal", "me"→"mensuel").
+            escaped_kws = []
+            for kw in kws:
+                stripped = kw.strip()
+                escaped = re.escape(stripped)
+                if stripped[-1:].isalnum():
+                    escaped += r"\b"
+                escaped_kws.append(escaped + r"\s*")
             pattern_str = r"(?i)\b(?:" + "|".join(escaped_kws) + r")"
             kw_regex = re.compile(pattern_str)
 
@@ -603,10 +759,40 @@ class Detector:
 
         if label == "POSTCODE":
             code = re.sub(r"\s", "", text)
-            return len(code) == 5 and code.isdigit()
+            if not (len(code) == 5 and code.isdigit()):
+                return False
+            # Rejeter si le code fait partie d'un identifiant plus large
+            # (ex : "BEN/MSP/2024/04521" → 04521 n'est pas un code postal)
+            if start > 0 and full_text[start - 1] in "/-":
+                return False
+            return True
 
         if label == "IBAN":
-            return self._iban_check(text)
+            cleaned = re.sub(r"[\s ]", "", text).upper()
+            # IBAN béninois : on masque sur la structure (BJ + 2 chiffres + ...)
+            # sans exiger le checksum mod-97 — les IBAN de test/saisis manuellement
+            # échouent souvent le mod-97 et ne doivent surtout pas fuiter.
+            if cleaned.startswith("BJ"):
+                return 20 <= len(cleaned) <= 34
+            return self._iban_check(cleaned)
+
+        if label == "USER":
+            parts = text.split(".")
+            if len(parts) != 2:
+                return False
+            first, second = parts[0].lower(), parts[1].lower()
+            # Exclure les abréviations FR ("cf.note") et les fichiers/TLD ("doc.xlsx", "site.com")
+            if first in _USER_ABBREV_BLACKLIST:
+                return False
+            if second in _USER_EXT_TLD_BLACKLIST:
+                return False
+            return True
+
+        if label == "MATRICULE":
+            # Un matricule administratif mêle lettres et chiffres (≥3 chiffres)
+            digits = sum(c.isdigit() for c in text)
+            has_alpha = any(c.isalpha() for c in text)
+            return digits >= 3 and has_alpha
 
         if label == "SIREN":
             cleaned = re.sub(r"[\s.\-]", "", text)

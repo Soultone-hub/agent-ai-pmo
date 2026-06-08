@@ -56,10 +56,16 @@ def get_latest_copil(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    analysis = db.query(Analysis).filter(
+    analyses = db.query(Analysis).filter(
         Analysis.project_id == project_id,
         Analysis.analysis_type == "copil"
-    ).order_by(Analysis.created_at.desc()).first()
+    ).order_by(Analysis.created_at.desc()).all()
+
+    # Ignorer les sous-enregistrements d'une génération multi-documents
+    analysis = next(
+        (a for a in analyses if "parent_analysis_id" not in (a.result_json or {})),
+        None,
+    )
 
     if not analysis:
         raise HTTPException(status_code=404, detail="Aucune synthèse COPIL trouvée pour ce projet")

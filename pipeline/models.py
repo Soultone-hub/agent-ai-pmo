@@ -34,6 +34,10 @@ class EntityLabel(str, Enum):
     IFU     = "IFU"      # Identifiant Fiscal Unique (13 chiffres)
     RCCM    = "RCCM"     # Registre de Commerce et du Crédit Mobilier
 
+    # Identifiants personnels structurés
+    USER      = "USER"       # Nom d'utilisateur système (initiale.nom / prénom.nom)
+    MATRICULE = "MATRICULE"  # Matricule / identifiant administratif (CNI, CNSS…)
+
     # Entités métier custom
     CUSTOM  = "CUSTOM"
 
@@ -56,6 +60,8 @@ LABEL_FR: dict[str, str] = {
     "CC":       "CARTE_BANCAIRE",
     "IFU":      "IFU",
     "RCCM":     "RCCM",
+    "USER":      "UTILISATEUR",
+    "MATRICULE": "MATRICULE",
     "CUSTOM":   "ENTITE",
 }
 

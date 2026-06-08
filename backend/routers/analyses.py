@@ -93,10 +93,13 @@ def get_latest_analysis(
     current_user: User = Depends(get_current_user),
 ):
     """Retourne la dernière analyse d'un projet pour un type donné."""
-    analysis = db.query(Analysis).filter(
+    analyses = db.query(Analysis).filter(
         Analysis.project_id == project_id,
         Analysis.analysis_type == type,
-    ).order_by(Analysis.created_at.desc()).first()
+    ).order_by(Analysis.created_at.desc()).all()
+
+    # Ignorer les sous-enregistrements multi-documents (stubs sans données réelles)
+    analysis = next((a for a in analyses if _is_real_analysis(a)), None)
 
     if not analysis:
         raise HTTPException(status_code=404, detail="Aucune analyse trouvée")

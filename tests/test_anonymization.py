@@ -63,16 +63,32 @@ class TestPhoneDetection:
 
 
 class TestDateDetection:
-    """Vérifie la détection des dates."""
+    """
+    Vérifie la détection CONTEXTUELLE des dates :
+    seules les dates personnelles (naissance, décès, embauche…) sont masquées ;
+    les dates "projet" (jalons, échéances, COPIL) sont préservées pour le LLM.
+    """
 
-    def test_date_fr_slash(self, pipeline):
-        result = pipeline.run("Réunion prévue le 25/04/2024.")
-        assert "25/04/2024" not in result.clean_text
+    def test_birthdate_masked(self, pipeline):
+        """Une date de naissance (contexte personnel) doit être masquée."""
+        result = pipeline.run("Le patient est né le 25/04/1990 à Cotonou.")
+        assert "25/04/1990" not in result.clean_text
         assert any(e.label == "DATE" for e in result.entities)
 
-    def test_date_textuelle(self, pipeline):
-        result = pipeline.run("La décision a été prise le 12 mars 2024.")
-        assert "12 mars 2024" not in result.clean_text
+    def test_birthdate_label_masked(self, pipeline):
+        """Format textuel après 'date de naissance'."""
+        result = pipeline.run("Date de naissance : 12 mars 1990.")
+        assert "12 mars 1990" not in result.clean_text
+
+    def test_project_date_not_masked(self, pipeline):
+        """Une date projet (réunion/COPIL) ne doit PAS être masquée."""
+        result = pipeline.run("La réunion COPIL est prévue le 25/04/2024.")
+        assert "25/04/2024" in result.clean_text
+
+    def test_deadline_date_not_masked(self, pipeline):
+        """Une échéance de livrable ne doit PAS être masquée."""
+        result = pipeline.run("Échéance du livrable : 30/09/2024.")
+        assert "30/09/2024" in result.clean_text
 
     def test_no_false_positive_on_year_alone(self, pipeline):
         """Une année seule (ex: 2024) ne doit pas être masquée."""
