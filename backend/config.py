@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = "no-reply@pilotia.com"
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # Purge RGPD des comptes archivés (suppression douce → définitive)
+    PURGE_SCHEDULER_ENABLED: bool = True   # planificateur quotidien intégré
+    PURGE_RETENTION_DAYS: int = 90         # fenêtre de récupération avant purge
+
     class Config:
         env_file = ".env"
         extra = "ignore"   # ignorer les variables d'env non déclarées (ex: TRANSFORMERS_OFFLINE)

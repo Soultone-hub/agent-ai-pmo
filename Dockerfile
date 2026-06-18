@@ -18,8 +18,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Télécharger le modèle spaCy français (NER pour l'anonymisation)
-RUN python -m spacy download fr_core_news_lg
+# Télécharger les modèles spaCy français : lg (détection NER) + sm (validation)
+RUN python -m spacy download fr_core_news_lg \
+    && python -m spacy download fr_core_news_sm
+
+# Pré-télécharger le modèle d'embeddings (chargé en mode hors-ligne au runtime).
+# Indispensable : rag_service.py le charge avec local_files_only=True → sans ce
+# cache, le backend planterait au démarrage.
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2', cache_folder='/app/models_cache')"
 
 
 # ─── Stage 2 : Production ────────────────────────────────────────────────────
@@ -38,6 +44,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
+# Copier le cache du modèle d'embeddings téléchargé au build
+# (models_cache/ est exclu par .dockerignore → on prend celui du builder)
+COPY --from=builder /app/models_cache /app/models_cache
+
 # Copier le code source (sans venv, tests, cache grâce au .dockerignore)
 COPY . .
 
@@ -47,8 +57,10 @@ RUN chmod +x /entrypoint.sh
 
 EXPOSE 8000
 
-# Healthcheck pour que docker-compose sache quand le backend est prêt
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Healthcheck pour que docker-compose sache quand le backend est prêt.
+# On utilise Python (curl n'est PAS installé dans l'image de production).
+# start-period long car le chargement des modèles (spaCy lg + embeddings) est lent.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)" || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]

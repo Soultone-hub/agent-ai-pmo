@@ -39,6 +39,18 @@ def get_or_create_collection(project_id: str):
     return client.get_or_create_collection(name=f"project_{project_id}")
 
 
+def delete_project_collection(project_id: str) -> bool:
+    """Supprime la collection vectorielle d'un projet (purge RGPD / nettoyage).
+    Retourne True si une collection a bien été supprimée, False sinon."""
+    try:
+        client.delete_collection(name=f"project_{project_id}")
+        logger.info("Collection ChromaDB supprimée : project_%s", project_id)
+        return True
+    except Exception as e:
+        logger.debug("Collection project_%s introuvable / déjà supprimée : %s", project_id, e)
+        return False
+
+
 def split_text(text: str, chunk_size: int = 1500, overlap: int = 150) -> list:
     """
     Découpage sémantique récursif similaire à RecursiveCharacterTextSplitter.

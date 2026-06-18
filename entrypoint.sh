@@ -19,4 +19,6 @@ echo "🔄 Exécution des migrations Alembic..."
 alembic upgrade head
 
 echo "🚀 Démarrage du serveur FastAPI..."
-exec uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 2
+# 1 worker : chaque worker recharge spaCy lg + embeddings (RAM) et écrit sur le
+# même ChromaDB embarqué (verrous SQLite). Augmenter seulement avec un Chroma serveur.
+exec uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 1
