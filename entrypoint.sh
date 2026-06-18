@@ -15,8 +15,18 @@ except Exception as e:
   sleep 2
 done
 
-echo "🔄 Exécution des migrations Alembic..."
-alembic upgrade head
+echo "🔄 Initialisation du schéma de base de données..."
+# Sur une base vierge, il n'existe pas de migration initiale créant les tables de
+# base (users/projects/documents) — elles l'étaient via create_all() en dev. On
+# crée donc toutes les tables directement depuis les modèles (source de vérité),
+# puis on marque la base au niveau de la dernière migration pour la cohérence.
+python -c "
+from backend.database.db import Base, engine
+from backend.models import user, project, document, analysis, chat_message  # noqa: F401 (enregistre les tables)
+Base.metadata.create_all(engine)
+print('✅ Schéma synchronisé (create_all).')
+"
+alembic stamp head
 
 echo "🚀 Démarrage du serveur FastAPI..."
 # 1 worker : chaque worker recharge spaCy lg + embeddings (RAM) et écrit sur le
